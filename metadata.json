@@ -1,0 +1,6 @@
+{
+  "name": "ProFile — Student Resume Builder & ATS Checker",
+  "description": "Premium, student-focused resume builder and ATS checker with cream monochrome styling, live preview, and instant scoring.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
