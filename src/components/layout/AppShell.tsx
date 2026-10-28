@@ -7,6 +7,7 @@ import React from 'react';
 import { Navbar } from './Navbar.tsx';
 import { AppView } from '../../types/navigation.ts';
 import { AvatarType } from '../../types/profile.ts';
+import { Logo } from '../ui/Logo.tsx';
 
 export interface AppShellProps {
   currentView: AppView;
@@ -22,7 +23,7 @@ export function AppShell({
   onNavigate,
   children,
   userAvatar = 'boy',
-  userName = 'Alex Chen',
+  userName = 'Sanjay Kumar',
   showNavbar = true,
 }: AppShellProps) {
   return (
@@ -41,25 +42,36 @@ export function AppShell({
 
       <footer className="w-full border-t border-[#E5E0D8]/60 bg-[#F8F5EE] py-6 sm:py-8 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#777777]">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-[#101010]">ProFile</span>
-            <span>·</span>
-            <span>Student Resume Builder & ATS Checker</span>
+          <div className="flex items-center gap-3">
+            <Logo size="sm" />
+            <span className="text-[#A3A3A3]">·</span>
+            <span>Student Resume Builder &amp; ATS Checker</span>
           </div>
           <div className="flex items-center gap-6">
             <button
               onClick={() => onNavigate('dashboard')}
-              className="hover:text-[#101010] transition-colors"
+              className="hover:text-[#101010] transition-colors cursor-pointer"
             >
               Dashboard
             </button>
             <button
-              onClick={() => onNavigate('design-system')}
-              className="hover:text-[#101010] transition-colors"
+              onClick={() => onNavigate('resume-builder')}
+              className="hover:text-[#101010] transition-colors cursor-pointer"
             >
-              Design Tokens
+              Resume Builder
             </button>
-            <span className="text-[#A3A3A3]">Phase 1 Foundation</span>
+            <button
+              onClick={() => onNavigate('ats-upload')}
+              className="hover:text-[#101010] transition-colors cursor-pointer"
+            >
+              ATS Checker
+            </button>
+            <button
+              onClick={() => onNavigate('profile')}
+              className="hover:text-[#101010] transition-colors cursor-pointer"
+            >
+              My Profile
+            </button>
           </div>
         </div>
       </footer>

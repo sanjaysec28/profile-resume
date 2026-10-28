@@ -32,18 +32,24 @@ import {
   Loader2,
 } from 'lucide-react';
 import { exportResumeToPdf } from '../utils/pdfExport.ts';
+import { Logo } from '../../../components/ui/Logo.tsx';
 
 interface ResumeBuilderProps {
   onBackToDashboard: () => void;
   studentName?: string;
+  initialData?: ResumeData;
+  onResumeDataChange?: (data: ResumeData) => void;
 }
 
 export function ResumeBuilder({
   onBackToDashboard,
   studentName = 'Sanjay',
+  initialData,
+  onResumeDataChange,
 }: ResumeBuilderProps) {
   const [activeStep, setActiveStep] = useState(1);
   const [resumeData, setResumeData] = useState<ResumeData>(() => {
+    if (initialData) return initialData;
     try {
       const saved = localStorage.getItem('profile_resume_draft');
       if (saved) {
@@ -65,6 +71,7 @@ export function ResumeBuilder({
   const handleSaveDraft = () => {
     try {
       localStorage.setItem('profile_resume_draft', JSON.stringify(resumeData));
+      onResumeDataChange?.(resumeData);
       showToast('Resume draft saved successfully!');
     } catch {
       showToast('Could not save draft to local storage.');
@@ -75,6 +82,16 @@ export function ResumeBuilder({
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
+
+  // Auto-sync resume draft to localStorage and notify parent
+  useEffect(() => {
+    try {
+      localStorage.setItem('profile_resume_draft', JSON.stringify(resumeData));
+      onResumeDataChange?.(resumeData);
+    } catch {
+      // Ignore quota errors
+    }
+  }, [resumeData, onResumeDataChange]);
 
   const handleDownloadPdf = async () => {
     if (isExportingPdf) return;
@@ -134,7 +151,7 @@ export function ResumeBuilder({
   }, [resumeData]);
 
   return (
-    <div className="min-h-screen w-full bg-[#F8F5EE] text-[#101010] flex flex-col font-sans select-none">
+    <div className="min-h-screen w-full bg-[#F8F5EE] text-[#101010] flex flex-col font-sans select-none animate-page-enter">
       {/* GLOBAL BUILDER TOP BAR */}
       <header className="sticky top-0 z-30 w-full bg-[#F8F5EE]/90 backdrop-blur-md border-b border-[#E5E0D8]">
         <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-18 flex items-center justify-between gap-4">
@@ -143,15 +160,10 @@ export function ResumeBuilder({
             <button
               type="button"
               onClick={onBackToDashboard}
-              className="flex items-center gap-2 cursor-pointer text-left"
+              className="flex items-center cursor-pointer transition-opacity hover:opacity-90"
               aria-label="ProFile Home"
             >
-              <div className="w-8 h-8 rounded-xl bg-[#101010] flex items-center justify-center text-[#F8F5EE] font-extrabold text-sm shadow-xs">
-                P
-              </div>
-              <span className="font-bold text-lg sm:text-xl tracking-tight text-[#101010]">
-                ProFile
-              </span>
+              <Logo size="md" />
             </button>
 
             <button

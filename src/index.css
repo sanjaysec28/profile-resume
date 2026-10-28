@@ -96,6 +96,73 @@ body {
   color: #F8F5EE;
 }
 
+/* ==========================================================================
+   Animations & Page Transitions (ProFile Loading & Transitions Polish)
+   ========================================================================== */
+
+/* 1. Intro Page Breathing Animation: scale(1) -> scale(1.035) -> scale(1) over 3.6s */
+@keyframes intro-breath {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 10px 24px rgba(16, 16, 16, 0.05));
+    opacity: 0.98;
+  }
+  50% {
+    transform: scale(1.035);
+    filter: drop-shadow(0 16px 34px rgba(16, 16, 16, 0.085));
+    opacity: 1;
+  }
+}
+
+@keyframes shadow-breath {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.28;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.38;
+  }
+}
+
+.animate-breath {
+  animation: intro-breath 3.6s ease-in-out infinite;
+  will-change: transform, filter, opacity;
+}
+
+.animate-shadow-breath {
+  animation: shadow-breath 3.6s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* 2. Page Transition: Smooth fade + 10px vertical movement over 200ms */
+@keyframes page-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-enter {
+  animation: page-enter 210ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+/* 3. Accessibility: prefers-reduced-motion compliance */
+@media (prefers-reduced-motion: reduce) {
+  .animate-breath,
+  .animate-shadow-breath,
+  .animate-page-enter {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
+
 /* Page break control for clean multi-page resumes */
 .break-inside-avoid,
 .resume-entry,

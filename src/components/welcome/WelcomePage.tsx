@@ -11,6 +11,7 @@
  */
 
 import { ArrowRight } from 'lucide-react';
+import { FadeImage } from '../ui/FadeImage.tsx';
 
 interface WelcomePageProps {
   onGetStarted: () => void;
@@ -18,7 +19,7 @@ interface WelcomePageProps {
 
 export function WelcomePage({ onGetStarted }: WelcomePageProps) {
   return (
-    <div className="relative min-h-screen w-full bg-[#F7F4ED] overflow-hidden flex flex-col items-center justify-center p-4 sm:p-6 select-none">
+    <div className="relative min-h-screen w-full bg-[#F7F4ED] overflow-hidden flex flex-col items-center justify-center p-4 sm:p-6 select-none animate-page-enter">
       {/* Background ambient lighting and soft 3D decorative curves matching reference */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {/* Soft radial glow in the center behind the logo */}
@@ -76,32 +77,29 @@ export function WelcomePage({ onGetStarted }: WelcomePageProps) {
 
       {/* Main Centered Content */}
       <div className="relative z-10 flex flex-col items-center justify-center max-w-full px-4">
-        {/* Centered Hero Image: intro.png with responsive sizing and object-fit: contain */}
+        {/* Centered Hero Image: intro.png with responsive sizing, breathing scale effect, and gentle shadow breath */}
         <div className="relative flex items-center justify-center">
-          {/* Subtle soft ash shadow directly beneath the 3D illustration */}
+          {/* Subtle soft ash shadow directly beneath the 3D illustration with smooth shadow breathing */}
           <div
-            className="absolute bottom-14 sm:bottom-16 w-3/5 h-8 rounded-full blur-xl opacity-30 pointer-events-none"
+            className="absolute bottom-14 sm:bottom-16 w-3/5 h-8 rounded-full blur-xl opacity-30 pointer-events-none animate-shadow-breath"
             style={{
               background: 'radial-gradient(ellipse at center, rgba(16, 16, 16, 0.5) 0%, rgba(16, 16, 16, 0) 70%)',
             }}
           />
 
-          <img
-            src="/image/intro.png"
-            alt="ProFile"
-            className="w-[280px] sm:w-[360px] md:w-[440px] lg:w-[480px] h-auto object-contain select-none pointer-events-none transition-transform duration-300"
-            style={{
-              filter: 'drop-shadow(0 10px 24px rgba(16, 16, 16, 0.05))',
-            }}
-            loading="eager"
-            onError={(e) => {
-              // Resilient fallback in case of path resolution variance
-              const target = e.currentTarget;
-              if (target.src.indexOf('/images/intro.png') === -1) {
-                target.src = '/images/intro.png';
-              }
-            }}
-          />
+          <div className="animate-breath">
+            <FadeImage
+              src="/image/intro.png"
+              fallbackSrc="/images/intro.png"
+              alt="ProFile"
+              wrapperClassName="flex items-center justify-center"
+              className="w-[280px] sm:w-[360px] md:w-[440px] lg:w-[480px] h-auto object-contain select-none pointer-events-none"
+              style={{
+                filter: 'drop-shadow(0 10px 24px rgba(16, 16, 16, 0.05))',
+              }}
+              loading="eager"
+            />
+          </div>
         </div>
 
         {/* Black Get Started → Button directly below with balanced spacing */}

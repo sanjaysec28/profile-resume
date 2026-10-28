@@ -15,6 +15,8 @@
 
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { Logo } from '../ui/Logo.tsx';
+import { FadeImage } from '../ui/FadeImage.tsx';
 
 export interface SignInPageProps {
   onBackToWelcome?: () => void;
@@ -55,7 +57,7 @@ export function SignInPage({
   };
 
   return (
-    <div className="relative min-h-screen w-full bg-[#F7F4ED] text-[#101010] flex flex-col justify-between overflow-x-hidden selection:bg-[#101010] selection:text-[#F8F5EE]">
+    <div className="relative min-h-screen w-full bg-[#F7F4ED] text-[#101010] flex flex-col justify-between overflow-x-hidden selection:bg-[#101010] selection:text-[#F8F5EE] animate-page-enter">
       {/* Background ambient lighting and soft 3D decorative curves */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {/* Central ambient luminous glow */}
@@ -103,11 +105,8 @@ export function SignInPage({
           <div />
         )}
 
-        <div className="flex items-center gap-2 font-bold text-lg sm:text-xl tracking-tight text-[#101010]">
-          <div className="w-7 h-7 rounded-lg bg-[#101010] flex items-center justify-center text-[#F8F5EE] text-xs font-bold">
-            P
-          </div>
-          <span>ProFile</span>
+        <div className="flex items-center">
+          <Logo size="md" />
         </div>
       </header>
 
@@ -224,17 +223,13 @@ export function SignInPage({
               />
 
               {/* Illustration with object-fit: contain and aspect-ratio preservation */}
-              <img
+              <FadeImage
                 src="/image/login.png"
+                fallbackSrc="/images/login.png"
                 alt="Sign in to ProFile"
+                wrapperClassName="w-full flex items-center justify-center"
                 className="w-full h-auto max-h-[380px] sm:max-h-[460px] lg:max-h-[520px] object-contain select-none pointer-events-none"
                 loading="eager"
-                onError={(e) => {
-                  const target = e.currentTarget;
-                  if (target.src.indexOf('/images/login.png') === -1) {
-                    target.src = '/images/login.png';
-                  }
-                }}
               />
 
               {/* Soft bottom blend gradient naturally dissolving into cream background */}
