@@ -98,37 +98,79 @@ body {
 
 /* Page break control for clean multi-page resumes */
 .break-inside-avoid,
-[data-section],
-.resume-section-item {
+.resume-entry,
+.resume-section,
+[data-section] {
   break-inside: avoid !important;
   page-break-inside: avoid !important;
 }
 
-/* Print optimization for pristine A4 PDF export */
+.break-after-avoid,
+.resume-section-header {
+  break-after: avoid !important;
+  page-break-after: avoid !important;
+}
+
+/* Print optimization for pristine, pixel-accurate A4 PDF export matching preview */
 @media print {
   @page {
     size: A4 portrait;
-    margin: 10mm 12mm;
+    margin: 0;
   }
-  body {
+  
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
     background: #FFFFFF !important;
-    color: #000000 !important;
+    color: #101010 !important;
+    width: 210mm !important;
+    min-height: 297mm !important;
   }
+
+  /* Hide app chrome, navigation, sidebars, buttons, toolbars */
   header, nav, aside, button, .no-print {
     display: none !important;
   }
-  #resume-a4-document {
-    box-shadow: none !important;
-    border: none !important;
+
+  /* Unwrap modal overlays so the resume document renders directly */
+  .fixed.inset-0 {
+    position: static !important;
+    background: transparent !important;
     padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .fixed.inset-0 > div {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    max-height: none !important;
+    background: transparent !important;
     width: 100% !important;
     max-width: 100% !important;
-    min-height: auto !important;
-    margin: 0 !important;
-    display: block !important;
   }
-  #resume-a4-document a {
-    text-decoration: underline !important;
+
+  #resume-a4-document,
+  #resume-final-preview-document,
+  .resume-a4-root {
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 297mm !important;
+    margin: 0 auto !important;
+    display: block !important;
+    transform: none !important;
+  }
+
+  .resume-a4-root a {
     color: #101010 !important;
+    text-decoration: underline !important;
   }
 }

@@ -60,7 +60,7 @@ export function FinalPreviewModal({
     setExportProgress('Starting PDF export...');
 
     const result = await exportResumeToPdf({
-      elementId: 'resume-a4-document',
+      elementId: 'resume-final-preview-document',
       fullName: data.personalInfo.fullName,
       onProgress: (_step, message) => {
         setExportProgress(message);
@@ -250,7 +250,11 @@ export function FinalPreviewModal({
 
           {/* Centered A4 Sheet */}
           <div className="w-full max-w-3xl transition-transform duration-200">
-            <ResumeLivePreview data={data} scale={zoomLevel} />
+            <ResumeLivePreview
+              id="resume-final-preview-document"
+              data={data}
+              scale={zoomLevel}
+            />
           </div>
         </div>
       </div>

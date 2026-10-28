@@ -81,8 +81,12 @@ export function ResumeBuilder({
     setIsExportingPdf(true);
     setExportProgressText('Preparing PDF export...');
 
+    const targetElementId = isFinalPreviewOpen
+      ? 'resume-final-preview-document'
+      : 'resume-a4-document';
+
     const result = await exportResumeToPdf({
-      elementId: 'resume-a4-document',
+      elementId: targetElementId,
       fullName: resumeData.personalInfo.fullName,
       onProgress: (_step, msg) => {
         setExportProgressText(msg);
