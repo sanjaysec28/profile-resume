@@ -34,9 +34,16 @@ import {
 import { exportResumeToPdf } from '../utils/pdfExport.ts';
 import { Logo } from '../../../components/ui/Logo.tsx';
 import { SocialFooter } from '../../../components/layout/SocialFooter.tsx';
+import { Navbar } from '../../../components/layout/Navbar.tsx';
+import { AppView } from '../../../types/navigation.ts';
+import { AvatarType } from '../../../types/profile.ts';
 
 interface ResumeBuilderProps {
   onBackToDashboard: () => void;
+  onNavigate?: (view: AppView) => void;
+  userAvatar?: AvatarType;
+  userName?: string;
+  onSignOut?: () => void;
   studentName?: string;
   initialData?: ResumeData;
   onResumeDataChange?: (data: ResumeData) => void;
@@ -44,6 +51,10 @@ interface ResumeBuilderProps {
 
 export function ResumeBuilder({
   onBackToDashboard,
+  onNavigate,
+  userAvatar = 'boy',
+  userName = '',
+  onSignOut,
   studentName = '',
   initialData,
   onResumeDataChange,
@@ -153,92 +164,79 @@ export function ResumeBuilder({
 
   return (
     <div className="min-h-screen w-full bg-[#F8F5EE] text-[#101010] flex flex-col font-sans select-none animate-page-enter">
-      {/* GLOBAL BUILDER TOP BAR */}
-      <header className="sticky top-0 z-30 w-full bg-[#F8F5EE]/90 backdrop-blur-md border-b border-[#E5E0D8]">
-        <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-18 flex items-center justify-between gap-4">
-          {/* Left Brand & Return */}
-          <div className="flex items-center gap-4 sm:gap-6">
-            <button
-              type="button"
-              onClick={onBackToDashboard}
-              className="flex items-center cursor-pointer transition-opacity hover:opacity-90"
-              aria-label="ProFile Home"
-            >
-              <Logo size="md" />
-            </button>
+      {/* FLOATING PILL NAVBAR MATCHING DASHBOARD & PROFILE */}
+      <Navbar
+        currentView="resume-builder"
+        onNavigate={onNavigate || ((view) => {
+          if (view === 'dashboard') onBackToDashboard();
+        })}
+        userAvatar={userAvatar}
+        userName={userName || studentName}
+        onSignOut={onSignOut}
+        showAllNav={true}
+      />
 
-            <button
-              type="button"
-              onClick={onBackToDashboard}
-              className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[#777777] hover:text-[#101010] transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Dashboard</span>
-            </button>
-          </div>
+      {/* FLOATING BUILDER QUICK ACTIONS BAR (Seamlessly integrated on warm cream background) */}
+      <div className="w-full max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 pt-3 sm:pt-4 pb-2 flex items-center justify-between gap-3">
+        {/* Left: Return link */}
+        <button
+          type="button"
+          onClick={onBackToDashboard}
+          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/80 hover:bg-white border border-[#E5E0D8] text-xs font-semibold text-[#666666] hover:text-[#101010] shadow-2xs transition-all cursor-pointer"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Dashboard</span>
+        </button>
 
-          {/* Right User & Actions */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Mobile preview toggle */}
-            <button
-              type="button"
-              onClick={() => setIsMobilePreviewOpen(true)}
-              className="lg:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#E5E0D8] text-xs font-medium text-[#101010]"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span>Preview</span>
-            </button>
+        {/* Right: Quick Actions */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Mobile preview toggle */}
+          <button
+            type="button"
+            onClick={() => setIsMobilePreviewOpen(true)}
+            className="lg:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#E5E0D8] text-xs font-semibold text-[#101010] shadow-2xs cursor-pointer"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>Preview</span>
+          </button>
 
-            {/* Save Draft */}
-            <button
-              type="button"
-              onClick={handleSaveDraft}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-[#FAF9F5] border border-[#E5E0D8] text-xs font-semibold text-[#101010] shadow-2xs transition-colors cursor-pointer"
-            >
-              <Bookmark className="w-3.5 h-3.5 text-[#777777]" />
-              <span>Save Draft</span>
-            </button>
+          {/* Save Draft */}
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white hover:bg-[#FAF9F5] border border-[#E5E0D8] text-xs font-semibold text-[#101010] shadow-2xs transition-colors cursor-pointer"
+          >
+            <Bookmark className="w-3.5 h-3.5 text-[#777777]" />
+            <span>Save Draft</span>
+          </button>
 
-            {/* Download PDF */}
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={isExportingPdf}
-              className={`inline-flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold text-white shadow-xs transition-colors cursor-pointer ${
-                isExportingPdf
-                  ? 'bg-[#333333] opacity-90 cursor-wait'
-                  : 'bg-[#101010] hover:bg-[#252525]'
-              }`}
-            >
-              {isExportingPdf ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span className="hidden sm:inline">{exportProgressText || 'Exporting...'}</span>
-                  <span className="sm:hidden">...</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Download PDF</span>
-                  <span className="sm:hidden">PDF</span>
-                </>
-              )}
-            </button>
-
-            {/* Student profile icon (rendered only when genuine user exists) */}
-            {studentName ? (
-              <div className="flex items-center gap-2 pl-2 border-l border-[#E5E0D8]">
-                <div className="w-8 h-8 rounded-full bg-[#1C1C1C] text-white flex items-center justify-center text-xs font-bold ring-1 ring-[#E5E0D8]">
-                  {studentName[0].toUpperCase()}
-                </div>
-                <span className="hidden md:inline text-xs font-semibold text-[#101010]">
-                  {studentName}
-                </span>
-              </div>
-            ) : null}
-          </div>
+          {/* Download PDF */}
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={isExportingPdf}
+            className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold text-white shadow-2xs transition-colors cursor-pointer ${
+              isExportingPdf
+                ? 'bg-[#333333] opacity-90 cursor-wait'
+                : 'bg-[#101010] hover:bg-[#252525]'
+            }`}
+          >
+            {isExportingPdf ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span className="hidden sm:inline">{exportProgressText || 'Exporting...'}</span>
+                <span className="sm:hidden">...</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Download PDF</span>
+                <span className="sm:hidden">PDF</span>
+              </>
+            )}
+          </button>
         </div>
-      </header>
+      </div>
 
       {/* MOBILE STEP PROGRESS BAR (Visible on small screens) */}
       <div className="lg:hidden bg-[#F0ECE3] border-b border-[#E5E0D8] px-4 py-2.5 overflow-x-auto flex items-center gap-2 scrollbar-none">

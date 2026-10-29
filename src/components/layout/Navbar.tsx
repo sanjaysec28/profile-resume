@@ -63,9 +63,9 @@ export function Navbar({
   return (
     <header className="sticky top-2 sm:top-4 z-40 w-full px-3 sm:px-6 pointer-events-none select-none">
       <div className="pointer-events-auto max-w-5xl mx-auto">
-        {/* Floating Pill Container */}
-        <div className="bg-[#F8F8F6]/95 backdrop-blur-md border border-[#E5E0D8] rounded-full shadow-[0_4px_24px_rgba(16,16,16,0.06),0_1px_3px_rgba(16,16,16,0.03)] px-3.5 sm:px-6 h-16 sm:h-18 flex items-center justify-between gap-3 sm:gap-6 transition-all duration-200">
-          {/* Zone 1: Official Brand Logo (Enlarged, Bold & Prominent) */}
+        {/* Floating Pill Container: White rounded container with subtle shadow */}
+        <div className="bg-white/95 backdrop-blur-md border border-[#E5E0D8] rounded-full shadow-[0_4px_24px_rgba(16,16,16,0.06),0_1px_3px_rgba(16,16,16,0.03)] px-3.5 sm:px-6 h-16 sm:h-18 flex items-center justify-between gap-3 sm:gap-6 transition-all duration-200">
+          {/* Zone 1: Official Brand Logo on the left */}
           <button
             onClick={() => handleNavClick('dashboard')}
             className="shrink-0 flex items-center cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98] py-1"
@@ -74,9 +74,9 @@ export function Navbar({
             <Logo size="md" />
           </button>
 
-          {/* Zone 2: Desktop Pill Navigation Links */}
+          {/* Zone 2: Centered Desktop Pill Navigation Links with fully rounded tabs */}
           {showAllNav && (
-            <nav className="hidden md:flex items-center gap-1 p-1 bg-[#EAE5DC]/55 rounded-full border border-[#E2DBD0]/60">
+            <nav className="hidden md:flex items-center gap-1.5 p-1 bg-[#F5F2EB] rounded-full border border-[#E8E2D7]">
               {navLinks.map((item) => {
                 const isActive = currentView === item.view;
                 return (
@@ -84,10 +84,10 @@ export function Navbar({
                     key={item.view}
                     onClick={() => handleNavClick(item.view)}
                     className={cn(
-                      'px-4 py-2 text-xs lg:text-[13px] font-semibold rounded-full transition-all duration-200 whitespace-nowrap cursor-pointer',
+                      'px-4 sm:px-4.5 py-2 text-xs lg:text-[13px] font-semibold rounded-full transition-all duration-200 whitespace-nowrap cursor-pointer',
                       isActive
-                        ? 'bg-[#101010] text-[#F8F5EE] shadow-2xs'
-                        : 'text-[#666666] hover:text-[#101010] hover:bg-white/60'
+                        ? 'bg-[#101010] text-[#F8F5EE] shadow-sm'
+                        : 'text-[#666666] hover:text-[#101010] hover:bg-white/80'
                     )}
                   >
                     {item.label}
@@ -97,8 +97,8 @@ export function Navbar({
             </nav>
           )}
 
-          {/* Zone 3: Right Action & User Profile Avatar */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Zone 3: Right Action — User Profile plus Logout icon */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
             {currentView === 'welcome' ? (
               <button
                 onClick={onGetStartedClick || (() => handleNavClick('dashboard'))}
@@ -113,7 +113,7 @@ export function Navbar({
                   'flex items-center gap-2 p-1 sm:pl-1.5 sm:pr-3.5 rounded-full border transition-all cursor-pointer group shadow-2xs',
                   currentView === 'profile'
                     ? 'bg-[#101010] text-[#F8F5EE] border-[#101010]'
-                    : 'bg-white/85 hover:bg-white border-[#E5E0D8] text-[#101010]'
+                    : 'bg-[#F8F8F6] hover:bg-white border-[#E5E0D8] text-[#101010]'
                 )}
                 aria-label="Student profile"
               >
@@ -126,12 +126,12 @@ export function Navbar({
               </button>
             )}
 
-            {/* Desktop Quick Sign Out */}
+            {/* Logout icon */}
             {onSignOut && currentView !== 'welcome' && (
               <button
                 type="button"
                 onClick={onSignOut}
-                className="hidden sm:flex p-2 rounded-full bg-white/80 hover:bg-[#F2ECE0] text-[#777777] hover:text-[#101010] border border-[#E5E0D8] transition-colors cursor-pointer shadow-2xs"
+                className="p-2 sm:p-2.5 rounded-full bg-[#F8F8F6] hover:bg-[#F2ECE0] text-[#777777] hover:text-[#101010] border border-[#E5E0D8] transition-colors cursor-pointer shadow-2xs shrink-0"
                 title="Sign out of ProFile"
                 aria-label="Sign out"
               >
@@ -144,7 +144,7 @@ export function Navbar({
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="md:hidden p-2 rounded-full bg-white border border-[#E5E0D8] text-[#101010] hover:bg-[#F2ECE0] transition-colors cursor-pointer shadow-2xs"
+                className="md:hidden p-2.5 rounded-full bg-[#F8F8F6] border border-[#E5E0D8] text-[#101010] hover:bg-white transition-colors cursor-pointer shadow-2xs"
                 aria-label="Toggle navigation menu"
               >
                 {isMobileMenuOpen ? (

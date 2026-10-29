@@ -434,6 +434,10 @@ function AppContent() {
         <LoadingScreen isLoading={isInitializing} />
         <ResumeBuilder
           onBackToDashboard={() => setCurrentView('dashboard')}
+          onNavigate={handleNavigate}
+          userAvatar={profile.avatar}
+          userName={profile.fullName}
+          onSignOut={user ? handleSignOut : undefined}
           studentName={profile.fullName.split(' ')[0]}
           initialData={resumeData}
           onResumeDataChange={(data) => {
