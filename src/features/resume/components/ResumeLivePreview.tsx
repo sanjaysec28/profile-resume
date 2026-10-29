@@ -109,7 +109,7 @@ export function ResumeLivePreview({
             href={toSafeUrl(cleanLive!)}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 font-semibold text-[#101010] hover:text-[#555555] underline decoration-[#A3A3A3] underline-offset-2 transition-colors break-all group"
+            className="inline-flex items-center gap-1 font-semibold text-[#101010] hover:text-[#555555] underline decoration-[#A3A3A3] underline-offset-2 transition-colors whitespace-nowrap group"
             title={cleanLive}
           >
             <Globe className="w-3 h-3 shrink-0 text-[#555555] group-hover:text-[#101010]" />
@@ -127,7 +127,7 @@ export function ResumeLivePreview({
             href={toSafeUrl(hasRepo ? cleanRepo! : cleanLegacy!)}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 font-semibold text-[#101010] hover:text-[#555555] underline decoration-[#A3A3A3] underline-offset-2 transition-colors break-all group"
+            className="inline-flex items-center gap-1 font-semibold text-[#101010] hover:text-[#555555] underline decoration-[#A3A3A3] underline-offset-2 transition-colors whitespace-nowrap group"
             title={hasRepo ? cleanRepo : cleanLegacy}
           >
             <Github className="w-3 h-3 shrink-0 text-[#555555] group-hover:text-[#101010]" />
@@ -182,19 +182,19 @@ export function ResumeLivePreview({
         {email && (
           <a
             href={`mailto:${email}`}
-            className="inline-flex items-start gap-1.5 text-[#333333] hover:text-[#101010] hover:underline min-w-0 max-w-full break-all"
+            className="inline-flex items-start gap-1.5 text-[#333333] hover:text-[#101010] hover:underline min-w-0 max-w-full break-words [overflow-wrap:anywhere]"
           >
             <Mail className="w-3 h-3 shrink-0 mt-0.5" style={{ color: iconColor }} />
-            <span className="break-all">{email}</span>
+            <span className="break-words [overflow-wrap:anywhere]">{email}</span>
           </a>
         )}
         {phone && (
           <a
             href={`tel:${phone.replace(/\s+/g, '')}`}
-            className="inline-flex items-start gap-1.5 text-[#333333] hover:text-[#101010] min-w-0 max-w-full"
+            className="inline-flex items-start gap-1.5 text-[#333333] hover:text-[#101010] min-w-0 max-w-full whitespace-nowrap"
           >
             <Phone className="w-3 h-3 shrink-0 mt-0.5" style={{ color: iconColor }} />
-            <span className="break-words">{phone}</span>
+            <span className="whitespace-nowrap">{phone}</span>
           </a>
         )}
         {location && (
@@ -208,10 +208,10 @@ export function ResumeLivePreview({
             href={toSafeUrl(linkedin)}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-start gap-1.5 text-[#333333] hover:text-[#101010] hover:underline min-w-0 max-w-full break-all"
+            className="inline-flex items-start gap-1.5 text-[#333333] hover:text-[#101010] hover:underline min-w-0 max-w-full break-words [overflow-wrap:anywhere]"
           >
             <Linkedin className="w-3 h-3 shrink-0 mt-0.5" style={{ color: iconColor }} />
-            <span className="break-all">
+            <span className="break-words [overflow-wrap:anywhere]">
               {linkedin
                 .replace(/^https?:\/\/(www\.)?linkedin\.com\/(in\/)?/, 'in/')
                 .replace(/\/$/, '')}
@@ -223,10 +223,10 @@ export function ResumeLivePreview({
             href={toSafeUrl(github)}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-start gap-1.5 text-[#333333] hover:text-[#101010] hover:underline min-w-0 max-w-full break-all"
+            className="inline-flex items-start gap-1.5 text-[#333333] hover:text-[#101010] hover:underline min-w-0 max-w-full break-words [overflow-wrap:anywhere]"
           >
             <Github className="w-3 h-3 shrink-0 mt-0.5" style={{ color: iconColor }} />
-            <span className="break-all">
+            <span className="break-words [overflow-wrap:anywhere]">
               {github.replace(/^https?:\/\/(www\.)?github\.com\//, 'github/').replace(/\/$/, '')}
             </span>
           </a>
@@ -236,10 +236,10 @@ export function ResumeLivePreview({
             href={toSafeUrl(website)}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-start gap-1.5 text-[#333333] hover:text-[#101010] hover:underline min-w-0 max-w-full break-all"
+            className="inline-flex items-start gap-1.5 text-[#333333] hover:text-[#101010] hover:underline min-w-0 max-w-full break-words [overflow-wrap:anywhere]"
           >
             <Globe className="w-3 h-3 shrink-0 mt-0.5" style={{ color: iconColor }} />
-            <span className="break-all">
+            <span className="break-words [overflow-wrap:anywhere]">
               {website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}
             </span>
           </a>
@@ -283,7 +283,7 @@ export function ResumeLivePreview({
                   <img
                     src={personalInfo.photoUrl}
                     alt={personalInfo.fullName}
-                    className="w-20 h-20 rounded-full object-cover border-2 border-[#D4D1CA] shadow-2xs"
+                    className="w-20 h-20 rounded-full object-cover aspect-square border-2 border-[#D4D1CA] shadow-2xs shrink-0"
                   />
                 </div>
               )}
@@ -518,7 +518,7 @@ export function ResumeLivePreview({
               <img
                 src={personalInfo.photoUrl}
                 alt={personalInfo.fullName}
-                className="w-16 h-16 rounded-full object-cover border border-[#101010]"
+                className="w-16 h-16 rounded-full object-cover aspect-square border border-[#101010] shrink-0"
               />
             </div>
           )}
@@ -701,7 +701,7 @@ export function ResumeLivePreview({
               <img
                 src={personalInfo.photoUrl}
                 alt={personalInfo.fullName}
-                className="w-14 h-14 rounded-lg object-cover border border-[#101010] shrink-0"
+                className="w-14 h-14 rounded-lg object-cover aspect-square border border-[#101010] shrink-0"
               />
             )}
             <div className="min-w-0 flex-1">
@@ -909,7 +909,7 @@ export function ResumeLivePreview({
               <img
                 src={personalInfo.photoUrl}
                 alt={personalInfo.fullName}
-                className="w-16 h-16 rounded-full object-cover border border-[#444444]"
+                className="w-16 h-16 rounded-full object-cover aspect-square border border-[#444444] shrink-0"
               />
             </div>
           )}
@@ -1078,7 +1078,7 @@ export function ResumeLivePreview({
               <img
                 src={personalInfo.photoUrl}
                 alt={personalInfo.fullName}
-                className="w-12 h-12 rounded-full object-cover border border-[#101010] shrink-0"
+                className="w-12 h-12 rounded-full object-cover aspect-square border border-[#101010] shrink-0"
               />
             )}
             <div className="min-w-0 flex-1">
@@ -1245,7 +1245,7 @@ export function ResumeLivePreview({
               <img
                 src={personalInfo.photoUrl}
                 alt={personalInfo.fullName}
-                className="w-16 h-16 rounded-xl object-cover border-2 border-[rgba(255,255,255,0.3)] shrink-0"
+                className="w-16 h-16 rounded-xl object-cover aspect-square border-2 border-[rgba(255,255,255,0.3)] shrink-0"
               />
             )}
             <div className="min-w-0 flex-1">
@@ -1258,7 +1258,7 @@ export function ResumeLivePreview({
             </div>
           </div>
           <div className="text-xs space-y-1 shrink-0 max-w-[45%] text-right text-[#E5E0D8]">
-            {personalInfo.email && <div className="break-all">{personalInfo.email}</div>}
+            {personalInfo.email && <div className="break-words [overflow-wrap:anywhere]">{personalInfo.email}</div>}
             {personalInfo.phone && <div>{personalInfo.phone}</div>}
             {personalInfo.location && <div>{personalInfo.location}</div>}
           </div>
@@ -1452,7 +1452,7 @@ export function ResumeLivePreview({
                 <img
                   src={personalInfo.photoUrl}
                   alt={personalInfo.fullName}
-                  className="w-16 h-16 rounded-lg object-cover border border-[#101010] shrink-0"
+                  className="w-16 h-16 rounded-lg object-cover aspect-square border border-[#101010] shrink-0"
                 />
               )}
               <div className="min-w-0 flex-1">
@@ -1609,7 +1609,7 @@ export function ResumeLivePreview({
                 <img
                   src={personalInfo.photoUrl}
                   alt={personalInfo.fullName}
-                  className="w-14 h-14 rounded-full object-cover border border-[#E5E0D8] shrink-0"
+                  className="w-14 h-14 rounded-full object-cover aspect-square border border-[#E5E0D8] shrink-0"
                 />
               )}
               <div className="min-w-0 flex-1">
@@ -1771,7 +1771,7 @@ export function ResumeLivePreview({
             <img
               src={personalInfo.photoUrl}
               alt={personalInfo.fullName}
-              className="w-16 h-16 rounded-xl object-cover border border-[#E5E0D8] shrink-0"
+              className="w-16 h-16 rounded-xl object-cover aspect-square border border-[#E5E0D8] shrink-0"
             />
           )}
         </div>
@@ -1894,7 +1894,7 @@ export function ResumeLivePreview({
               <img
                 src={personalInfo.photoUrl}
                 alt={personalInfo.fullName}
-                className="w-14 h-14 rounded-full object-cover border border-[#E5E0D8] shrink-0"
+                className="w-14 h-14 rounded-full object-cover aspect-square border border-[#E5E0D8] shrink-0"
               />
             )}
             <div className="min-w-0 flex-1">

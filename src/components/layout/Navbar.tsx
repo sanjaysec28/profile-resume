@@ -23,6 +23,7 @@ import {
   FileText,
   CheckCircle2,
   User,
+  LogOut,
 } from 'lucide-react';
 
 export interface NavbarProps {
@@ -32,6 +33,7 @@ export interface NavbarProps {
   userName?: string;
   onGetStartedClick?: () => void;
   showAllNav?: boolean;
+  onSignOut?: () => void;
 }
 
 export function Navbar({
@@ -41,6 +43,7 @@ export function Navbar({
   userName = 'Sanjay Kumar',
   onGetStartedClick,
   showAllNav = true,
+  onSignOut,
 }: NavbarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -121,6 +124,19 @@ export function Navbar({
               </button>
             )}
 
+            {/* Desktop Quick Sign Out */}
+            {onSignOut && currentView !== 'welcome' && (
+              <button
+                type="button"
+                onClick={onSignOut}
+                className="hidden sm:flex p-2 rounded-full bg-white/80 hover:bg-[#F2ECE0] text-[#777777] hover:text-[#101010] border border-[#E5E0D8] transition-colors cursor-pointer shadow-2xs"
+                title="Sign out of ProFile"
+                aria-label="Sign out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             {/* Mobile Menu Toggle Button */}
             {showAllNav && (
               <button
@@ -161,6 +177,20 @@ export function Navbar({
                 </button>
               );
             })}
+
+            {onSignOut && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  onSignOut();
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-all duration-150 cursor-pointer text-left"
+              >
+                <LogOut className="w-4 h-4 shrink-0" />
+                <span>Sign Out</span>
+              </button>
+            )}
           </div>
         )}
       </div>

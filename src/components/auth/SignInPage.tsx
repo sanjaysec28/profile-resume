@@ -14,9 +14,10 @@
  */
 
 import { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, AlertCircle } from 'lucide-react';
 import { Logo } from '../ui/Logo.tsx';
 import { FadeImage } from '../ui/FadeImage.tsx';
+import { useAuth } from '../../context/AuthContext.tsx';
 
 export interface SignInPageProps {
   onBackToWelcome?: () => void;
@@ -29,32 +30,34 @@ export function SignInPage({
   onContinueToDashboard,
   onGoogleSignIn,
 }: SignInPageProps) {
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [authNote, setAuthNote] = useState<string | null>(null);
+  const { signInWithGoogle, isLoading: isAuthLoading, isConfigured, missingFirebaseKeys, authError } = useAuth();
+  const [localAuthenticating, setLocalAuthenticating] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   /**
-   * Google Sign-in Handler
-   * Defines the future authentication integration point (Firebase Auth / Google OAuth)
-   * without simulating a fake sign-in state.
+   * Real Google Sign-in Handler using Firebase Authentication
    */
   const handleGoogleSignIn = async () => {
-    setIsAuthenticating(true);
-    setAuthNote(null);
+    setLocalAuthenticating(true);
+    setLocalError(null);
 
     try {
       if (onGoogleSignIn) {
         await onGoogleSignIn();
       } else {
-        console.info('[ProFile Auth] Google Sign-In triggered. Integration hook ready.');
-        setAuthNote('Google authentication integration endpoint ready for Phase 2.');
+        await signInWithGoogle();
       }
-    } catch (err) {
-      console.error('[ProFile Auth] Sign-in error:', err);
-      setAuthNote('Unable to complete Google Sign-In at this time.');
+      onContinueToDashboard?.();
+    } catch (err: any) {
+      console.error('[ProFile Auth] Sign-in failed:', err);
+      setLocalError(err.message || 'Unable to complete Google Sign-In.');
     } finally {
-      setIsAuthenticating(false);
+      setLocalAuthenticating(false);
     }
   };
+
+  const isWorking = isAuthLoading || localAuthenticating;
+  const displayError = localError || authError;
 
   return (
     <div className="relative min-h-screen w-full bg-[#F7F4ED] text-[#101010] flex flex-col justify-between overflow-x-hidden selection:bg-[#101010] selection:text-[#F8F5EE] animate-page-enter">
@@ -131,11 +134,11 @@ export function SignInPage({
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
-                disabled={isAuthenticating}
+                disabled={isWorking}
                 className="w-full sm:w-auto min-w-[280px] h-13 sm:h-14 px-6 sm:px-8 bg-white hover:bg-[#FAF9F5] text-[#101010] font-medium text-sm sm:text-base rounded-full border border-[#E5E0D8] hover:border-[#D1C9BE] shadow-[0_2px_8px_rgba(16,16,16,0.04),0_6px_20px_rgba(16,16,16,0.03)] hover:shadow-[0_4px_16px_rgba(16,16,16,0.08)] transition-all duration-200 flex items-center justify-center gap-3.5 cursor-pointer active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#101010] disabled:opacity-60 disabled:cursor-not-allowed"
                 aria-label="Continue with Google"
               >
-                {isAuthenticating ? (
+                {isWorking ? (
                   <span className="flex items-center gap-2 text-xs sm:text-sm text-[#777777]">
                     <svg
                       className="animate-spin h-4 w-4 text-[#101010]"
@@ -157,7 +160,7 @@ export function SignInPage({
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       />
                     </svg>
-                    <span>Connecting...</span>
+                    <span>Authenticating with Google...</span>
                   </span>
                 ) : (
                   <>
@@ -189,10 +192,18 @@ export function SignInPage({
                 )}
               </button>
 
-              {/* Status note for future integration */}
-              {authNote && (
-                <p className="text-xs text-[#777777] mt-3 bg-white/70 px-3 py-1.5 rounded-lg border border-[#E5E0D8]">
-                  {authNote}
+              {/* Error or configuration alert */}
+              {displayError && (
+                <div className="text-xs text-red-700 bg-red-50/90 border border-red-200 p-3 rounded-xl mt-3 flex items-start gap-2 w-full text-left">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{displayError}</span>
+                </div>
+              )}
+
+              {/* Guidance if Firebase is awaiting configuration */}
+              {!isConfigured && !displayError && (
+                <p className="text-[11px] text-[#888888] mt-3 bg-white/70 px-3 py-2 rounded-xl border border-[#E5E0D8] text-center lg:text-left leading-relaxed">
+                  Firebase Authentication is ready. Provide your web configuration in <code className="bg-[#EAE5DC] px-1 py-0.5 rounded text-[10px]">.env</code> to connect.
                 </p>
               )}
 

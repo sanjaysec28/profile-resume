@@ -50,7 +50,14 @@ import {
   ArrowRight,
   Check,
   X,
+  LogOut,
+  Loader2,
 } from 'lucide-react';
+import {
+  uploadProfileImageToCloudinary,
+  validateImageFile,
+  checkCloudinaryConfig,
+} from '../../lib/cloudinary.ts';
 
 interface MyProfilePageProps {
   profile: StudentProfile;
@@ -59,6 +66,7 @@ interface MyProfilePageProps {
   onUpdateResumeData: (updater: (prev: ResumeData) => ResumeData) => void;
   onNavigateToBuilder: () => void;
   onNavigateToAts: () => void;
+  onSignOut?: () => void;
 }
 
 export function MyProfilePage({
@@ -68,11 +76,13 @@ export function MyProfilePage({
   onUpdateResumeData,
   onNavigateToBuilder,
   onNavigateToAts,
+  onSignOut,
 }: MyProfilePageProps) {
   // Modal states
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isPhotoPickerOpen, setIsPhotoPickerOpen] = useState(false);
   const [isResumePreviewOpen, setIsResumePreviewOpen] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   // Sub-entity editing modals
   const [editingEducation, setEditingEducation] = useState<ResumeEducation | null>(null);
@@ -214,24 +224,51 @@ export function MyProfilePage({
     setIsPhotoPickerOpen(false);
   };
 
-  // Custom photo upload via file reader
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Custom photo upload via Cloudinary with validation and local preview fallback
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 3 * 1024 * 1024) {
-      alert('Photo must be less than 3MB in size.');
+    // Validate file type and size
+    const validation = validateImageFile(file);
+    if (!validation.isValid) {
+      setExportNotice(validation.error || 'Invalid photo file.');
+      setTimeout(() => setExportNotice(null), 4000);
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        handleSelectAvatarType('custom', result);
+    setIsUploadingPhoto(true);
+    const cloudinaryConfig = checkCloudinaryConfig();
+
+    if (cloudinaryConfig.isConfigured) {
+      setExportNotice('Uploading photo to Cloudinary...');
+      try {
+        const uploadResult = await uploadProfileImageToCloudinary(file);
+        handleSelectAvatarType('custom', uploadResult.secureUrl);
+        setExportNotice('Profile photo uploaded and saved successfully!');
+        setTimeout(() => setExportNotice(null), 4000);
+      } catch (err: any) {
+        console.error('[ProFile Cloudinary Upload Error]:', err);
+        setExportNotice(`Photo upload failed: ${err.message || 'Please check Cloudinary settings'}`);
+        setTimeout(() => setExportNotice(null), 5000);
+      } finally {
+        setIsUploadingPhoto(false);
       }
-    };
-    reader.readAsDataURL(file);
+    } else {
+      // Local fallback if Cloudinary credentials are not configured yet
+      setExportNotice('Setting local preview (Cloudinary upload preset pending in .env)...');
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        if (result) {
+          handleSelectAvatarType('custom', result);
+        }
+        setIsUploadingPhoto(false);
+      };
+      reader.onerror = () => setIsUploadingPhoto(false);
+      reader.readAsDataURL(file);
+      setTimeout(() => setExportNotice(null), 4000);
+    }
   };
 
   return (
@@ -330,6 +367,18 @@ export function MyProfilePage({
               <FileText className="w-4 h-4" />
               <span>Resume Builder</span>
             </Button>
+            {onSignOut && (
+              <Button
+                variant="ghost"
+                size="md"
+                onClick={onSignOut}
+                className="gap-2 text-[#777777] hover:text-[#101010] hover:bg-[#F2ECE0]"
+                title="Sign out of ProFile"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -1170,18 +1219,37 @@ export function MyProfilePage({
                 Or Upload Custom Resume Photo
               </span>
               <div className="flex items-center gap-4">
-                <label className="flex-1 border-2 border-dashed border-[#DDD5C7] hover:border-[#101010] rounded-2xl p-4 text-center cursor-pointer transition-colors">
-                  <Camera className="w-5 h-5 mx-auto mb-1 text-[#777777]" />
-                  <span className="text-xs font-semibold text-[#101010] block">
-                    Choose image file
-                  </span>
-                  <span className="text-[10px] text-[#A3A3A3] block mt-0.5">
-                    JPG or PNG up to 3MB
-                  </span>
+                <label className={`flex-1 border-2 border-dashed rounded-2xl p-4 text-center transition-colors ${
+                  isUploadingPhoto
+                    ? 'border-[#101010] bg-[#FAF9F5] cursor-wait'
+                    : 'border-[#DDD5C7] hover:border-[#101010] cursor-pointer'
+                }`}>
+                  {isUploadingPhoto ? (
+                    <div className="flex flex-col items-center justify-center py-1">
+                      <Loader2 className="w-5 h-5 mx-auto mb-1 animate-spin text-[#101010]" />
+                      <span className="text-xs font-semibold text-[#101010] block">
+                        Uploading to Cloudinary...
+                      </span>
+                      <span className="text-[10px] text-[#777777] block mt-0.5">
+                        Please wait
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <Camera className="w-5 h-5 mx-auto mb-1 text-[#777777]" />
+                      <span className="text-xs font-semibold text-[#101010] block">
+                        Choose image file
+                      </span>
+                      <span className="text-[10px] text-[#A3A3A3] block mt-0.5">
+                        JPG, PNG, or WEBP up to 5MB
+                      </span>
+                    </>
+                  )}
                   <input
                     type="file"
                     accept="image/png, image/jpeg, image/webp"
                     onChange={handlePhotoUpload}
+                    disabled={isUploadingPhoto}
                     className="hidden"
                   />
                 </label>

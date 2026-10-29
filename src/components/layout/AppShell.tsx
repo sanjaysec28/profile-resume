@@ -16,6 +16,7 @@ export interface AppShellProps {
   userAvatar?: AvatarType;
   userName?: string;
   showNavbar?: boolean;
+  onSignOut?: () => void;
 }
 
 export function AppShell({
@@ -25,6 +26,7 @@ export function AppShell({
   userAvatar = 'boy',
   userName = 'Sanjay Kumar',
   showNavbar = true,
+  onSignOut,
 }: AppShellProps) {
   return (
     <div className="min-h-screen bg-[#F8F5EE] text-[#101010] flex flex-col font-sans">
@@ -35,6 +37,7 @@ export function AppShell({
           userAvatar={userAvatar}
           userName={userName}
           showAllNav={currentView !== 'welcome'}
+          onSignOut={onSignOut}
         />
       )}
 

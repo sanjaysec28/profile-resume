@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * 
  * ProFile — Student-Focused Resume Builder & ATS Checker
- * Phase 8: Brand Integration & UI Polish
+ * Phase 11: Real Firebase Authentication + Cloud Firestore User Profile + Cloudinary Integration
  */
 
 import { useState, useEffect } from 'react';
@@ -18,6 +18,8 @@ import { StudentProfile } from './types/profile.ts';
 import { ResumeData } from './types/resume.ts';
 import { INITIAL_STUDENT_PROFILE } from './lib/constants.ts';
 import { INITIAL_RESUME_DATA } from './features/resume/constants.ts';
+import { AuthProvider, useAuth } from './context/AuthContext.tsx';
+import { mapUserDocToStudentProfile } from './lib/userService.ts';
 import {
   Upload,
   CheckCircle2,
@@ -29,11 +31,12 @@ import { SignInPage } from './components/auth/SignInPage.tsx';
 import { ResumeBuilder } from './features/resume/index.ts';
 import { MyProfilePage } from './components/profile/MyProfilePage.tsx';
 
-export default function App() {
+function AppContent() {
+  const { user, userProfile, isLoading: isAuthLoading, isConfigured, signOut, updateProfile } = useAuth();
   const [currentView, setCurrentView] = useState<AppView>('welcome');
   const [isInitializing, setIsInitializing] = useState(true);
 
-  // Fast genuine app readiness check (never forces a fixed delay)
+  // Fast genuine app readiness check
   useEffect(() => {
     const initApp = async () => {
       try {
@@ -76,12 +79,89 @@ export default function App() {
   const [isAtsScanning, setIsAtsScanning] = useState(false);
   const [atsScoreResult, setAtsScoreResult] = useState<number | null>(null);
 
-  // Sync updated profile to localStorage and propagate personal details to resumeData
+  // Synchronize authenticated Firestore profile document into student profile and resume
+  useEffect(() => {
+    if (userProfile) {
+      const synced = mapUserDocToStudentProfile(userProfile, profile);
+      setProfile(synced);
+      try {
+        localStorage.setItem('profile_student_data', JSON.stringify(synced));
+      } catch {}
+
+      setResumeData((prev) => {
+        const next: ResumeData = {
+          ...prev,
+          personalInfo: {
+            ...prev.personalInfo,
+            fullName: synced.fullName,
+            email: synced.email,
+            phone: synced.phone || prev.personalInfo.phone,
+            location: synced.location || prev.personalInfo.location,
+            professionalTitle: synced.targetRole || prev.personalInfo.professionalTitle,
+            linkedin: synced.socialLinks?.linkedin || prev.personalInfo.linkedin,
+            github: synced.socialLinks?.github || prev.personalInfo.github,
+            website: synced.socialLinks?.portfolio || prev.personalInfo.website,
+            photoUrl: synced.avatarUrl || prev.personalInfo.photoUrl,
+          },
+        };
+        try {
+          localStorage.setItem('profile_resume_draft', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    }
+  }, [userProfile]);
+
+  // If user is authenticated and is on signin or welcome, take them directly to dashboard
+  useEffect(() => {
+    if (user && (currentView === 'signin' || currentView === 'welcome')) {
+      setCurrentView('dashboard');
+    }
+  }, [user]);
+
+  // Protected navigation handler
+  const handleNavigate = (view: AppView) => {
+    // If Firebase is configured and user is unauthenticated, protected routes redirect to signin
+    if (isConfigured && !user && view !== 'welcome' && view !== 'signin') {
+      setCurrentView('signin');
+      return;
+    }
+    setCurrentView(view);
+  };
+
+  // Sign out handler
+  const handleSignOut = async () => {
+    await signOut();
+    setCurrentView('welcome');
+  };
+
+  // Sync updated profile to localStorage, Firestore (if logged in), and resumeData
   const handleUpdateProfile = (updated: StudentProfile) => {
     setProfile(updated);
     try {
       localStorage.setItem('profile_student_data', JSON.stringify(updated));
     } catch {}
+
+    // Persist to Firestore if user is authenticated
+    if (user) {
+      updateProfile({
+        displayName: updated.fullName,
+        email: updated.email,
+        phone: updated.phone,
+        location: updated.location,
+        collegeOrUniversity: updated.collegeOrUniversity,
+        major: updated.major,
+        graduationYear: updated.graduationYear,
+        gpa: updated.gpa,
+        targetRole: updated.targetRole,
+        bio: updated.bio,
+        avatar: updated.avatar,
+        photoURL: updated.avatarUrl,
+        socialLinks: updated.socialLinks,
+      }).catch((err) => {
+        console.error('[ProFile Firestore updateProfile error]:', err);
+      });
+    }
 
     setResumeData((prev) => {
       const next: ResumeData = {
@@ -135,6 +215,18 @@ export default function App() {
           try {
             localStorage.setItem('profile_student_data', JSON.stringify(updatedProf));
           } catch {}
+
+          if (user) {
+            updateProfile({
+              displayName: updatedProf.fullName,
+              email: updatedProf.email,
+              phone: updatedProf.phone,
+              location: updatedProf.location,
+              photoURL: updatedProf.avatarUrl,
+              socialLinks: updatedProf.socialLinks,
+            }).catch(() => {});
+          }
+
           return updatedProf;
         });
       }
@@ -147,7 +239,7 @@ export default function App() {
   if (currentView === 'welcome') {
     return (
       <>
-        <LoadingScreen isLoading={isInitializing} />
+        <LoadingScreen isLoading={isInitializing || isAuthLoading} />
         <WelcomePage onGetStarted={() => setCurrentView('signin')} />
       </>
     );
@@ -157,7 +249,7 @@ export default function App() {
   if (currentView === 'signin') {
     return (
       <>
-        <LoadingScreen isLoading={isInitializing} />
+        <LoadingScreen isLoading={isInitializing || isAuthLoading} />
         <SignInPage
           onBackToWelcome={() => setCurrentView('welcome')}
           onContinueToDashboard={() => setCurrentView('dashboard')}
@@ -199,13 +291,14 @@ export default function App() {
       <LoadingScreen isLoading={isInitializing} />
       <AppShell
         currentView={currentView}
-        onNavigate={(view) => setCurrentView(view)}
+        onNavigate={handleNavigate}
         userAvatar={profile.avatar}
         userName={profile.fullName}
+        onSignOut={user ? handleSignOut : undefined}
       >
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
           <div key={currentView} className="animate-page-enter">
-            {/* VIEW 1: STUDENT DASHBOARD (Permanent Clean Layout: Header banner, 3 prominent cards, downcard) */}
+            {/* VIEW 1: STUDENT DASHBOARD */}
             {currentView === 'dashboard' && (
               <div>
                 {/* Header Banner Card with headercard.png */}
@@ -320,166 +413,175 @@ export default function App() {
                   />
                 </div>
 
-            {/* Student Quick Summary Strip */}
-            <div className="mt-8 sm:mt-10 p-6 rounded-2xl bg-[#F8F8F6] border border-[#E5E0D8] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3.5">
-                <Avatar type={profile.avatar} size="md" />
-                <div>
-                  <h4 className="text-sm font-semibold text-[#101010]">
-                    Active 3D Avatar: {profile.avatar === 'boy' ? 'Student (Boy)' : 'Student (Girl)'}
-                  </h4>
-                  <p className="text-xs text-[#777777]">
-                    Faceless monochrome clay aesthetic · Fully responsive
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setCurrentView('profile')}
-                >
-                  Change Avatar
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setCurrentView('resume-builder')}
-                >
-                  Create New Resume
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 2: MY PROFILE (Full Workspace: Hero, Stats, Personal, Education, Skills, Projects, Experience, Certifications, Resume & Export) */}
-        {currentView === 'profile' && (
-          <MyProfilePage
-            profile={profile}
-            resumeData={resumeData}
-            onUpdateProfile={handleUpdateProfile}
-            onUpdateResumeData={handleUpdateResumeData}
-            onNavigateToBuilder={() => setCurrentView('resume-builder')}
-            onNavigateToAts={() => setCurrentView('ats-upload')}
-          />
-        )}
-
-        {/* VIEW 3: ATS CHECKER WORKSPACE */}
-        {currentView === 'ats-upload' && (
-          <div>
-            <PageHeader
-              title="ATS Resume Scanner & Score Checker"
-              description="Test your resume against leading Applicant Tracking Systems with comprehensive formatting, keyword, and section analysis."
-              kicker="Instant ATS Diagnostic"
-              action={
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setCurrentView('resume-builder')}
-                >
-                  Open Resume Builder
-                </Button>
-              }
-            />
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              {/* Left Column: Drag & Drop Scanner */}
-              <div className="lg:col-span-7 space-y-6">
-                <div className="p-8 sm:p-10 rounded-[28px] bg-[#F8F8F6] border-2 border-dashed border-[#DDD5C7] hover:border-[#101010] transition-colors flex flex-col items-center justify-center text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-[#101010] text-[#F8F5EE] flex items-center justify-center mb-4 shadow-sm">
-                    <Upload className="w-7 h-7" />
+                {/* Student Quick Summary Strip */}
+                <div className="mt-8 sm:mt-10 p-6 rounded-2xl bg-[#F8F8F6] border border-[#E5E0D8] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <Avatar type={profile.avatar} size="md" />
+                    <div>
+                      <h4 className="text-sm font-semibold text-[#101010]">
+                        Active 3D Avatar: {profile.avatar === 'boy' ? 'Student (Boy)' : 'Student (Girl)'}
+                      </h4>
+                      <p className="text-xs text-[#777777]">
+                        Faceless monochrome clay aesthetic · Fully responsive
+                      </p>
+                    </div>
                   </div>
-                  <h3 className="text-lg font-bold text-[#101010]">
-                    Upload Resume for ATS Score
-                  </h3>
-                  <p className="text-xs text-[#777777] max-w-sm mt-1 leading-relaxed">
-                    Drop your PDF or DOCX resume here, or scan your active ProFile draft.
-                  </p>
-                  <div className="mt-6 flex flex-wrap gap-3 justify-center">
-                    <Button
-                      variant="primary"
-                      size="md"
-                      onClick={handleSimulateAtsScan}
-                      disabled={isAtsScanning}
-                    >
-                      {isAtsScanning ? 'Analyzing Document...' : 'Scan Active Resume Draft'}
-                    </Button>
+
+                  <div className="flex items-center gap-3">
                     <Button
                       variant="secondary"
-                      size="md"
+                      size="sm"
+                      onClick={() => setCurrentView('profile')}
+                    >
+                      Change Avatar
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={() => setCurrentView('resume-builder')}
                     >
-                      Build from Scratch
+                      Create New Resume
                     </Button>
                   </div>
                 </div>
+              </div>
+            )}
 
-                {/* Score Diagnostic Card */}
-                {atsScoreResult !== null && (
-                  <div className="p-6 rounded-[28px] bg-white border border-[#E5E0D8] shadow-sm space-y-4">
-                    <div className="flex items-center justify-between pb-3 border-b border-[#E5E0D8]">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                        <h4 className="font-bold text-sm text-[#101010]">Diagnostic Complete</h4>
+            {/* VIEW 2: MY PROFILE */}
+            {currentView === 'profile' && (
+              <MyProfilePage
+                profile={profile}
+                resumeData={resumeData}
+                onUpdateProfile={handleUpdateProfile}
+                onUpdateResumeData={handleUpdateResumeData}
+                onNavigateToBuilder={() => setCurrentView('resume-builder')}
+                onNavigateToAts={() => setCurrentView('ats-upload')}
+                onSignOut={user ? handleSignOut : undefined}
+              />
+            )}
+
+            {/* VIEW 3: ATS CHECKER WORKSPACE */}
+            {currentView === 'ats-upload' && (
+              <div>
+                <PageHeader
+                  title="ATS Resume Scanner & Score Checker"
+                  description="Test your resume against leading Applicant Tracking Systems with comprehensive formatting, keyword, and section analysis."
+                  kicker="Instant ATS Diagnostic"
+                  action={
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => setCurrentView('resume-builder')}
+                    >
+                      Open Resume Builder
+                    </Button>
+                  }
+                />
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  {/* Left Column: Drag & Drop Scanner */}
+                  <div className="lg:col-span-7 space-y-6">
+                    <div className="p-8 sm:p-10 rounded-[28px] bg-[#F8F8F6] border-2 border-dashed border-[#DDD5C7] hover:border-[#101010] transition-colors flex flex-col items-center justify-center text-center">
+                      <div className="w-16 h-16 rounded-2xl bg-[#101010] text-[#F8F5EE] flex items-center justify-center mb-4 shadow-sm">
+                        <Upload className="w-7 h-7" />
                       </div>
-                      <span className="font-mono text-xs font-bold px-2.5 py-1 bg-[#EBF5EE] text-[#1E5631] rounded-lg">
-                        {atsScoreResult}% Overall Match
-                      </span>
+                      <h3 className="text-lg font-bold text-[#101010]">
+                        Upload Resume for ATS Score
+                      </h3>
+                      <p className="text-xs text-[#777777] max-w-sm mt-1 leading-relaxed">
+                        Drop your PDF or DOCX resume here, or scan your active ProFile draft.
+                      </p>
+                      <div className="mt-6 flex flex-wrap gap-3 justify-center">
+                        <Button
+                          variant="primary"
+                          size="md"
+                          onClick={handleSimulateAtsScan}
+                          disabled={isAtsScanning}
+                        >
+                          {isAtsScanning ? 'Analyzing Document...' : 'Scan Active Resume Draft'}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="md"
+                          onClick={() => setCurrentView('resume-builder')}
+                        >
+                          Build from Scratch
+                        </Button>
+                      </div>
                     </div>
 
-                    <div className="space-y-3 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[#555555]">Standard A4 Layout &amp; Margins</span>
-                        <span className="font-semibold text-emerald-600">Passed (100%)</span>
+                    {/* Score Diagnostic Card */}
+                    {atsScoreResult !== null && (
+                      <div className="p-6 rounded-[28px] bg-white border border-[#E5E0D8] shadow-sm space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-[#E5E0D8]">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                            <h4 className="font-bold text-sm text-[#101010]">Diagnostic Complete</h4>
+                          </div>
+                          <span className="font-mono text-xs font-bold px-2.5 py-1 bg-[#EBF5EE] text-[#1E5631] rounded-lg">
+                            {atsScoreResult}% Overall Match
+                          </span>
+                        </div>
+
+                        <div className="space-y-3 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#555555]">Standard A4 Layout &amp; Margins</span>
+                            <span className="font-semibold text-emerald-600">Passed (100%)</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#555555]">Section Header Hierarchy</span>
+                            <span className="font-semibold text-emerald-600">Passed (98%)</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#555555]">Font Legibility (Inter / Sans-Serif)</span>
+                            <span className="font-semibold text-emerald-600">Passed (100%)</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#555555]">Contact &amp; Hyperlink Structure</span>
+                            <span className="font-semibold text-emerald-600">Passed (95%)</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[#555555]">Section Header Hierarchy</span>
-                        <span className="font-semibold text-emerald-600">Passed (98%)</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[#555555]">Font Legibility (Inter / Sans-Serif)</span>
-                        <span className="font-semibold text-emerald-600">Passed (100%)</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[#555555]">Contact &amp; Hyperlink Structure</span>
-                        <span className="font-semibold text-emerald-600">Passed (95%)</span>
-                      </div>
+                    )}
+                  </div>
+
+                  {/* Right Column: ATS Best Practices Guidelines */}
+                  <div className="lg:col-span-5 space-y-5">
+                    <div className="p-6 rounded-[28px] bg-[#F8F8F6] border border-[#E5E0D8] space-y-3">
+                      <h4 className="text-sm font-bold text-[#101010] flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-[#101010]" />
+                        <span>How ProFile Maximizes ATS Scores</span>
+                      </h4>
+                      <ul className="text-xs text-[#555555] space-y-2.5 leading-relaxed">
+                        <li className="flex items-start gap-2">
+                          <span className="font-bold text-[#101010]">•</span>
+                          <span><strong>Single &amp; Dual Column Balance:</strong> Clean linear DOM hierarchy ensures text extractors read contact details and sections in sequential order.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="font-bold text-[#101010]">•</span>
+                          <span><strong>Zero Unparseable Graphics:</strong> Uses semantic text elements rather than flattened images or complex SVG text.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="font-bold text-[#101010]">•</span>
+                          <span><strong>Standardized Section Headings:</strong> Uses recognizable headers like Education, Experience, Skills, and Projects.</span>
+                        </li>
+                      </ul>
                     </div>
                   </div>
-                )}
-              </div>
-
-              {/* Right Column: ATS Best Practices Guidelines */}
-              <div className="lg:col-span-5 space-y-5">
-                <div className="p-6 rounded-[28px] bg-[#F8F8F6] border border-[#E5E0D8] space-y-3">
-                  <h4 className="text-sm font-bold text-[#101010] flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-[#101010]" />
-                    <span>How ProFile Maximizes ATS Scores</span>
-                  </h4>
-                  <ul className="text-xs text-[#555555] space-y-2.5 leading-relaxed">
-                    <li className="flex items-start gap-2">
-                      <span className="font-bold text-[#101010]">•</span>
-                      <span><strong>Single &amp; Dual Column Balance:</strong> Clean linear DOM hierarchy ensures text extractors read contact details and sections in sequential order.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="font-bold text-[#101010]">•</span>
-                      <span><strong>Zero Unparseable Graphics:</strong> Uses semantic text elements rather than flattened images or complex SVG text.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="font-bold text-[#101010]">•</span>
-                      <span><strong>Standardized Section Headings:</strong> Uses recognizable headers like Education, Experience, Skills, and Projects.</span>
-                    </li>
-                  </ul>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
+            )}
           </div>
         </div>
       </AppShell>
     </>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
