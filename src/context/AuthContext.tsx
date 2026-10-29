@@ -171,13 +171,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     await updateUserProfile(user.uid, updates);
 
-    setUserProfile((prev) => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        ...updates,
-      };
-    });
+    // Refresh from Firestore to guarantee UI is in sync with database
+    const refreshed = await getUserProfile(user.uid);
+    if (refreshed) {
+      setUserProfile(refreshed);
+    } else {
+      setUserProfile((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          ...updates,
+        };
+      });
+    }
   };
 
   const clearAuthError = () => setAuthError(null);

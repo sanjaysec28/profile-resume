@@ -99,13 +99,13 @@ export function ExperienceStep({ data, onChange }: ExperienceStepProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Company or Organization"
-                placeholder="e.g. Paytm"
+                placeholder="e.g. Acme Tech Labs"
                 value={exp.company}
                 onChange={(e) => handleUpdateExperience(exp.id, 'company', e.target.value)}
               />
               <Input
                 label="Job Title or Role"
-                placeholder="e.g. Onboarding Specialist Intern - PI Agents"
+                placeholder="e.g. Software Engineering Intern"
                 value={exp.position}
                 onChange={(e) => handleUpdateExperience(exp.id, 'position', e.target.value)}
               />

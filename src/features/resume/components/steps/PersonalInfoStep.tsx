@@ -143,7 +143,7 @@ export function PersonalInfoStep({ data, onChange }: PersonalInfoStepProps) {
         <Input
           label="Full Name"
           value={info.fullName}
-          placeholder="e.g. Sanjay Kumar"
+          placeholder="e.g. Jane Doe"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('fullName', e.target.value)
           }
@@ -151,7 +151,7 @@ export function PersonalInfoStep({ data, onChange }: PersonalInfoStepProps) {
         <Input
           label="Professional Title"
           value={info.professionalTitle || ''}
-          placeholder="e.g. AI & Data Science Student"
+          placeholder="e.g. Computer Science Student"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('professionalTitle', e.target.value)
           }
@@ -160,7 +160,7 @@ export function PersonalInfoStep({ data, onChange }: PersonalInfoStepProps) {
           label="Email Address"
           type="email"
           value={info.email}
-          placeholder="e.g. sanjay@example.com"
+          placeholder="e.g. jane.doe@university.edu"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('email', e.target.value)
           }
@@ -169,7 +169,7 @@ export function PersonalInfoStep({ data, onChange }: PersonalInfoStepProps) {
           label="Phone Number"
           type="tel"
           value={info.phone}
-          placeholder="e.g. +91 98765 43210"
+          placeholder="e.g. +1 (555) 000-0000"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('phone', e.target.value)
           }
@@ -177,7 +177,7 @@ export function PersonalInfoStep({ data, onChange }: PersonalInfoStepProps) {
         <Input
           label="Location"
           value={info.location}
-          placeholder="e.g. Chennai, Tamil Nadu"
+          placeholder="e.g. San Francisco, CA"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('location', e.target.value)
           }
@@ -185,7 +185,7 @@ export function PersonalInfoStep({ data, onChange }: PersonalInfoStepProps) {
         <Input
           label="LinkedIn Profile"
           value={info.linkedin || ''}
-          placeholder="e.g. https://linkedin.com/in/sanjay"
+          placeholder="e.g. https://linkedin.com/in/janedoe"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('linkedin', e.target.value)
           }
@@ -193,7 +193,7 @@ export function PersonalInfoStep({ data, onChange }: PersonalInfoStepProps) {
         <Input
           label="GitHub Profile"
           value={info.github || ''}
-          placeholder="e.g. https://github.com/sanjay"
+          placeholder="e.g. https://github.com/janedoe"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('github', e.target.value)
           }
@@ -201,7 +201,7 @@ export function PersonalInfoStep({ data, onChange }: PersonalInfoStepProps) {
         <Input
           label="Portfolio Website"
           value={info.website || ''}
-          placeholder="e.g. https://sanjay.dev"
+          placeholder="e.g. https://janedoe.dev"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('website', e.target.value)
           }

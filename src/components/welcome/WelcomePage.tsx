@@ -12,6 +12,7 @@
 
 import { ArrowRight } from 'lucide-react';
 import { FadeImage } from '../ui/FadeImage.tsx';
+import { SocialFooter } from '../layout/SocialFooter.tsx';
 
 interface WelcomePageProps {
   onGetStarted: () => void;
@@ -19,7 +20,7 @@ interface WelcomePageProps {
 
 export function WelcomePage({ onGetStarted }: WelcomePageProps) {
   return (
-    <div className="relative min-h-screen w-full bg-[#F7F4ED] overflow-hidden flex flex-col items-center justify-center p-4 sm:p-6 select-none animate-page-enter">
+    <div className="relative min-h-screen w-full bg-[#F7F4ED] overflow-hidden flex flex-col items-center justify-between p-4 sm:p-6 select-none animate-page-enter">
       {/* Background ambient lighting and soft 3D decorative curves matching reference */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {/* Soft radial glow in the center behind the logo */}
@@ -76,7 +77,7 @@ export function WelcomePage({ onGetStarted }: WelcomePageProps) {
       </div>
 
       {/* Main Centered Content */}
-      <div className="relative z-10 flex flex-col items-center justify-center max-w-full px-4">
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center max-w-full px-4">
         {/* Centered Hero Image: intro.png with responsive sizing, breathing scale effect, and gentle shadow breath */}
         <div className="relative flex items-center justify-center">
           {/* Subtle soft ash shadow directly beneath the 3D illustration with smooth shadow breathing */}
@@ -111,6 +112,11 @@ export function WelcomePage({ onGetStarted }: WelcomePageProps) {
           <span>Get Started</span>
           <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
         </button>
+      </div>
+
+      {/* Social Footer */}
+      <div className="relative z-10 w-full">
+        <SocialFooter className="py-3 sm:py-4 mt-0" />
       </div>
     </div>
   );

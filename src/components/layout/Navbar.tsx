@@ -40,7 +40,7 @@ export function Navbar({
   currentView,
   onNavigate,
   userAvatar = 'boy',
-  userName = 'Sanjay Kumar',
+  userName = '',
   onGetStartedClick,
   showAllNav = true,
   onSignOut,
@@ -118,9 +118,11 @@ export function Navbar({
                 aria-label="Student profile"
               >
                 <Avatar type={userAvatar} size="sm" />
-                <span className="hidden sm:inline text-xs font-semibold tracking-tight">
-                  {userName.split(' ')[0]}
-                </span>
+                {userName ? (
+                  <span className="hidden sm:inline text-xs font-semibold tracking-tight">
+                    {userName.split(' ')[0]}
+                  </span>
+                ) : null}
               </button>
             )}
 

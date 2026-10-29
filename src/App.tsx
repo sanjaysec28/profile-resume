@@ -10,7 +10,6 @@ import { useState, useEffect } from 'react';
 import { AppShell } from './components/layout/AppShell.tsx';
 import { PageHeader } from './components/layout/PageHeader.tsx';
 import { Button } from './components/ui/Button.tsx';
-import { Avatar } from './components/ui/Avatar.tsx';
 import { FadeImage } from './components/ui/FadeImage.tsx';
 import { LoadingScreen } from './components/ui/LoadingScreen.tsx';
 import { AppView } from './types/navigation.ts';
@@ -30,6 +29,145 @@ import { WelcomePage } from './components/welcome/WelcomePage.tsx';
 import { SignInPage } from './components/auth/SignInPage.tsx';
 import { ResumeBuilder } from './features/resume/index.ts';
 import { MyProfilePage } from './components/profile/MyProfilePage.tsx';
+
+interface AtsDiagnosticItem {
+  label: string;
+  score: number;
+  status: 'passed' | 'warning' | 'info';
+  details: string;
+}
+
+interface AtsReport {
+  overallScore: number;
+  items: AtsDiagnosticItem[];
+}
+
+function computeAtsReport(resume: ResumeData): AtsReport {
+  const items: AtsDiagnosticItem[] = [];
+
+  // 1. Contact Information
+  const hasName = Boolean(resume.personalInfo?.fullName?.trim());
+  const hasEmail = Boolean(resume.personalInfo?.email?.trim());
+  const hasPhone = Boolean(resume.personalInfo?.phone?.trim());
+  const hasLocation = Boolean(resume.personalInfo?.location?.trim());
+
+  let contactScore = 0;
+  if (hasName) contactScore += 30;
+  if (hasEmail) contactScore += 30;
+  if (hasPhone) contactScore += 20;
+  if (hasLocation) contactScore += 20;
+
+  items.push({
+    label: 'Contact Information Completeness',
+    score: contactScore,
+    status: contactScore >= 80 ? 'passed' : contactScore >= 50 ? 'warning' : 'info',
+    details:
+      contactScore === 100
+        ? 'All key contact details detected (Name, Email, Phone, Location).'
+        : `Missing: ${[!hasName && 'Name', !hasEmail && 'Email', !hasPhone && 'Phone', !hasLocation && 'Location'].filter(Boolean).join(', ')}.`,
+  });
+
+  // 2. Summary / Objective
+  const summaryLen = resume.personalInfo?.summary?.trim().length || 0;
+  let summaryScore = 0;
+  if (summaryLen >= 60) summaryScore = 100;
+  else if (summaryLen >= 20) summaryScore = 65;
+  else summaryScore = 20;
+
+  items.push({
+    label: 'Professional Summary & Headline',
+    score: summaryScore,
+    status: summaryScore >= 65 ? 'passed' : 'warning',
+    details:
+      summaryScore === 100
+        ? 'Strong, concise professional summary detected.'
+        : summaryLen > 0
+        ? 'Summary is relatively short. Consider adding 2-3 impact-focused sentences.'
+        : 'No summary detected. An introductory profile summary improves ATS keyword matching.',
+  });
+
+  // 3. Education
+  const validEdu = (resume.education || []).filter((e) => e.institution?.trim() || e.degree?.trim());
+  let eduScore = 0;
+  if (validEdu.length >= 1 && validEdu[0].institution && validEdu[0].degree) eduScore = 100;
+  else if (validEdu.length >= 1) eduScore = 60;
+  else eduScore = 15;
+
+  items.push({
+    label: 'Academic & Degree Credentials',
+    score: eduScore,
+    status: eduScore >= 60 ? 'passed' : 'warning',
+    details:
+      eduScore === 100
+        ? `Found ${validEdu.length} formal academic credential${validEdu.length > 1 ? 's' : ''} with degree details.`
+        : 'Include your college or university, degree, and expected graduation date.',
+  });
+
+  // 4. Experience & Practical Work
+  const validExp = (resume.experience || []).filter((e) => e.company?.trim());
+  const validProj = (resume.projects || []).filter((p) => p.title?.trim());
+  let expScore = 0;
+  if (validExp.length >= 1) expScore = 100;
+  else if (validProj.length >= 2) expScore = 80;
+  else if (validProj.length === 1) expScore = 50;
+  else expScore = 20;
+
+  items.push({
+    label: 'Experience & Practical Work',
+    score: expScore,
+    status: expScore >= 80 ? 'passed' : expScore >= 50 ? 'warning' : 'info',
+    details:
+      validExp.length >= 1
+        ? `Detected ${validExp.length} internship/job experience record${validExp.length > 1 ? 's' : ''}.`
+        : validProj.length >= 1
+        ? 'Project-focused portfolio detected. Practical projects demonstrate hands-on competence.'
+        : 'Add internships, research fellowships, or major projects to showcase impact.',
+  });
+
+  // 5. Technical & Core Skills
+  const skillCount =
+    (resume.skills?.technical?.length || 0) +
+    (resume.skills?.soft?.length || 0) +
+    (resume.skills?.tools?.length || 0);
+  let skillScore = 0;
+  if (skillCount >= 6) skillScore = 100;
+  else if (skillCount >= 3) skillScore = 75;
+  else if (skillCount >= 1) skillScore = 40;
+  else skillScore = 15;
+
+  items.push({
+    label: 'Technical & Domain Keywords',
+    score: skillScore,
+    status: skillScore >= 75 ? 'passed' : 'warning',
+    details:
+      skillCount >= 3
+        ? `${skillCount} skills indexed for ATS keyword density.`
+        : 'Add at least 4-6 specific technical skills or domain tools.',
+  });
+
+  // 6. ATS Layout Hierarchy
+  items.push({
+    label: 'Standard A4 Layout & Parsability',
+    score: 100,
+    status: 'passed',
+    details: 'Single & dual column linear hierarchy compliant with Workday, Greenhouse & Taleo.',
+  });
+
+  // Weighted overall score
+  const overall = Math.round(
+    contactScore * 0.2 +
+    summaryScore * 0.15 +
+    eduScore * 0.25 +
+    expScore * 0.2 +
+    skillScore * 0.1 +
+    100 * 0.1
+  );
+
+  return {
+    overallScore: Math.min(100, Math.max(10, overall)),
+    items,
+  };
+}
 
 function AppContent() {
   const { user, userProfile, isLoading: isAuthLoading, isConfigured, signOut, updateProfile } = useAuth();
@@ -58,7 +196,18 @@ function AppContent() {
   const [profile, setProfile] = useState<StudentProfile>(() => {
     try {
       const saved = localStorage.getItem('profile_student_data');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (
+          parsed.fullName === 'Alex Chen' ||
+          parsed.fullName === 'Sanjay Kumar' ||
+          parsed.fullName === 'ProFile Student'
+        ) {
+          localStorage.removeItem('profile_student_data');
+          return INITIAL_STUDENT_PROFILE;
+        }
+        return parsed;
+      }
     } catch {
       // fallback to initial
     }
@@ -69,7 +218,18 @@ function AppContent() {
   const [resumeData, setResumeData] = useState<ResumeData>(() => {
     try {
       const saved = localStorage.getItem('profile_resume_draft');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (
+          parsed.personalInfo?.fullName === 'Alex Chen' ||
+          parsed.personalInfo?.fullName === 'Sanjay Kumar' ||
+          parsed.personalInfo?.fullName === 'ProFile Student'
+        ) {
+          localStorage.removeItem('profile_resume_draft');
+          return INITIAL_RESUME_DATA;
+        }
+        return parsed;
+      }
     } catch {
       // fallback to initial
     }
@@ -77,7 +237,7 @@ function AppContent() {
   });
 
   const [isAtsScanning, setIsAtsScanning] = useState(false);
-  const [atsScoreResult, setAtsScoreResult] = useState<number | null>(null);
+  const [atsReport, setAtsReport] = useState<AtsReport | null>(null);
 
   // Synchronize authenticated Firestore profile document into student profile and resume
   useEffect(() => {
@@ -119,10 +279,17 @@ function AppContent() {
     }
   }, [user]);
 
+  // Guard against unauthenticated access to protected views
+  useEffect(() => {
+    if (!isAuthLoading && !user && currentView !== 'welcome' && currentView !== 'signin') {
+      setCurrentView('signin');
+    }
+  }, [user, isAuthLoading, currentView]);
+
   // Protected navigation handler
   const handleNavigate = (view: AppView) => {
-    // If Firebase is configured and user is unauthenticated, protected routes redirect to signin
-    if (isConfigured && !user && view !== 'welcome' && view !== 'signin') {
+    // If user is unauthenticated, protected routes redirect to signin
+    if (!user && view !== 'welcome' && view !== 'signin') {
       setCurrentView('signin');
       return;
     }
@@ -136,7 +303,7 @@ function AppContent() {
   };
 
   // Sync updated profile to localStorage, Firestore (if logged in), and resumeData
-  const handleUpdateProfile = (updated: StudentProfile) => {
+  const handleUpdateProfile = async (updated: StudentProfile): Promise<void> => {
     setProfile(updated);
     try {
       localStorage.setItem('profile_student_data', JSON.stringify(updated));
@@ -144,22 +311,24 @@ function AppContent() {
 
     // Persist to Firestore if user is authenticated
     if (user) {
-      updateProfile({
+      await updateProfile({
         displayName: updated.fullName,
         email: updated.email,
-        phone: updated.phone,
-        location: updated.location,
-        collegeOrUniversity: updated.collegeOrUniversity,
-        major: updated.major,
-        graduationYear: updated.graduationYear,
-        gpa: updated.gpa,
-        targetRole: updated.targetRole,
-        bio: updated.bio,
+        phone: updated.phone || '',
+        location: updated.location || '',
+        collegeOrUniversity: updated.collegeOrUniversity || '',
+        major: updated.major || '',
+        graduationYear: updated.graduationYear || '',
+        gpa: updated.gpa || '',
+        targetRole: updated.targetRole || '',
+        bio: updated.bio || '',
         avatar: updated.avatar,
-        photoURL: updated.avatarUrl,
-        socialLinks: updated.socialLinks,
-      }).catch((err) => {
-        console.error('[ProFile Firestore updateProfile error]:', err);
+        photoURL: updated.avatarUrl || null,
+        socialLinks: {
+          linkedin: updated.socialLinks?.linkedin || '',
+          github: updated.socialLinks?.github || '',
+          portfolio: updated.socialLinks?.portfolio || '',
+        },
       });
     }
 
@@ -282,8 +451,9 @@ function AppContent() {
     setIsAtsScanning(true);
     setTimeout(() => {
       setIsAtsScanning(false);
-      setAtsScoreResult(96);
-    }, 1200);
+      const report = computeAtsReport(resumeData);
+      setAtsReport(report);
+    }, 850);
   };
 
   return (
@@ -312,13 +482,19 @@ function AppContent() {
                     loading="eager"
                   />
                   <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-10 lg:px-14 max-w-[62%] sm:max-w-[55%]">
-                    <div className="flex items-center gap-2 text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-[#777777] mb-1 sm:mb-2">
-                      <span>{profile.collegeOrUniversity}</span>
-                      <span>·</span>
-                      <span>Class of {profile.graduationYear}</span>
-                    </div>
+                    {profile.collegeOrUniversity || profile.graduationYear ? (
+                      <div className="flex items-center gap-2 text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-[#777777] mb-1 sm:mb-2">
+                        {profile.collegeOrUniversity && <span>{profile.collegeOrUniversity}</span>}
+                        {profile.collegeOrUniversity && profile.graduationYear && <span>·</span>}
+                        {profile.graduationYear && <span>Class of {profile.graduationYear}</span>}
+                      </div>
+                    ) : (
+                      <div className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-[#777777] mb-1 sm:mb-2">
+                        Student Workspace
+                      </div>
+                    )}
                     <h1 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-[#101010] leading-tight">
-                      Welcome back, {profile.fullName.split(' ')[0]}
+                      Welcome back{profile.fullName && profile.fullName !== 'Student' ? `, ${profile.fullName.split(' ')[0]}` : ''}
                     </h1>
                     <p className="text-xs sm:text-sm text-[#777777] mt-1 sm:mt-2 hidden sm:block leading-relaxed">
                       Ready to prepare for internship season? Build your resume, test your ATS score, or update your profile.
@@ -401,48 +577,16 @@ function AppContent() {
                   </div>
                 </div>
 
-                {/* Bottom Career Banner Card with downcard.png */}
-                <div className="mt-8 sm:mt-10 relative w-full rounded-[24px] sm:rounded-[28px] overflow-hidden border border-[#3A3A3A] bg-[#101010] shadow-md min-h-[120px]">
+                {/* Dashboard Career Banner Card with downcard.png */}
+                <div className="mt-8 sm:mt-10 relative w-full rounded-[24px] sm:rounded-[28px] overflow-hidden border border-[#E5E0D8] bg-[#F7F4ED] shadow-sm flex items-center justify-center">
                   <FadeImage
                     src="/image/downcard.png"
                     fallbackSrc="/images/downcard.png"
-                    alt="Your Career Journey Starts Here"
-                    wrapperClassName="w-full h-auto"
-                    className="w-full h-auto object-cover"
+                    alt="ProFile Career Journey"
+                    wrapperClassName="w-full flex items-center justify-center"
+                    className="w-full h-auto object-contain block"
                     loading="lazy"
                   />
-                </div>
-
-                {/* Student Quick Summary Strip */}
-                <div className="mt-8 sm:mt-10 p-6 rounded-2xl bg-[#F8F8F6] border border-[#E5E0D8] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3.5">
-                    <Avatar type={profile.avatar} size="md" />
-                    <div>
-                      <h4 className="text-sm font-semibold text-[#101010]">
-                        Active 3D Avatar: {profile.avatar === 'boy' ? 'Student (Boy)' : 'Student (Girl)'}
-                      </h4>
-                      <p className="text-xs text-[#777777]">
-                        Faceless monochrome clay aesthetic · Fully responsive
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setCurrentView('profile')}
-                    >
-                      Change Avatar
-                    </Button>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => setCurrentView('resume-builder')}
-                    >
-                      Create New Resume
-                    </Button>
-                  </div>
                 </div>
               </div>
             )}
@@ -511,35 +655,57 @@ function AppContent() {
                     </div>
 
                     {/* Score Diagnostic Card */}
-                    {atsScoreResult !== null && (
+                    {atsReport !== null && (
                       <div className="p-6 rounded-[28px] bg-white border border-[#E5E0D8] shadow-sm space-y-4">
                         <div className="flex items-center justify-between pb-3 border-b border-[#E5E0D8]">
                           <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                            <h4 className="font-bold text-sm text-[#101010]">Diagnostic Complete</h4>
+                            <CheckCircle2
+                              className={`w-5 h-5 ${
+                                atsReport.overallScore >= 70 ? 'text-emerald-600' : 'text-amber-500'
+                              }`}
+                            />
+                            <h4 className="font-bold text-sm text-[#101010]">
+                              {atsReport.overallScore >= 70 ? 'ATS Diagnostic Complete' : 'ATS Readiness Analysis'}
+                            </h4>
                           </div>
-                          <span className="font-mono text-xs font-bold px-2.5 py-1 bg-[#EBF5EE] text-[#1E5631] rounded-lg">
-                            {atsScoreResult}% Overall Match
+                          <span
+                            className={`font-mono text-xs font-bold px-2.5 py-1 rounded-lg ${
+                              atsReport.overallScore >= 75
+                                ? 'bg-[#EBF5EE] text-[#1E5631]'
+                                : atsReport.overallScore >= 50
+                                ? 'bg-amber-50 text-amber-800'
+                                : 'bg-red-50 text-red-700'
+                            }`}
+                          >
+                            {atsReport.overallScore}% Overall Match
                           </span>
                         </div>
 
                         <div className="space-y-3 text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[#555555]">Standard A4 Layout &amp; Margins</span>
-                            <span className="font-semibold text-emerald-600">Passed (100%)</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-[#555555]">Section Header Hierarchy</span>
-                            <span className="font-semibold text-emerald-600">Passed (98%)</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-[#555555]">Font Legibility (Inter / Sans-Serif)</span>
-                            <span className="font-semibold text-emerald-600">Passed (100%)</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-[#555555]">Contact &amp; Hyperlink Structure</span>
-                            <span className="font-semibold text-emerald-600">Passed (95%)</span>
-                          </div>
+                          {atsReport.items.map((item, idx) => (
+                            <div
+                              key={idx}
+                              className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 py-1.5 border-b border-[#F5F2EB] last:border-none"
+                            >
+                              <div className="pr-2">
+                                <span className="font-semibold text-[#101010]">{item.label}</span>
+                                <p className="text-[11px] text-[#777777] mt-0.5">{item.details}</p>
+                              </div>
+                              <span
+                                className={`font-semibold shrink-0 text-left sm:text-right ${
+                                  item.status === 'passed'
+                                    ? 'text-emerald-600'
+                                    : item.status === 'warning'
+                                    ? 'text-amber-600'
+                                    : 'text-[#888888]'
+                                }`}
+                              >
+                                {item.status === 'passed'
+                                  ? `Passed (${item.score}%)`
+                                  : `Needs Attention (${item.score}%)`}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}

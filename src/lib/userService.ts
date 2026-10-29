@@ -86,17 +86,22 @@ export async function syncUserProfileOnLogin(
   const snap = await getDoc(userDocRef);
 
   if (!snap.exists()) {
-    // New user initial profile document
+    // New user initial profile document: only populate actual Google account information
     const newProfile: UserProfileDocument = {
       uid: firebaseUser.uid,
-      displayName: firebaseUser.displayName || 'ProFile Student',
+      displayName: firebaseUser.displayName || '',
       email: firebaseUser.email,
       emailVerified: !!firebaseUser.emailVerified,
       photoURL: firebaseUser.photoURL || null,
       avatar: firebaseUser.photoURL ? 'custom' : 'boy',
-      collegeOrUniversity: 'University / College',
-      major: 'Computer Science',
-      graduationYear: '2026',
+      collegeOrUniversity: '',
+      major: '',
+      graduationYear: '',
+      gpa: '',
+      targetRole: '',
+      bio: '',
+      phone: '',
+      location: '',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -138,7 +143,7 @@ export async function syncUserProfileOnLogin(
 
 /**
  * Updates an authenticated user's profile document in Firestore.
- * Preserves uid and createdAt.
+ * Preserves uid and createdAt. Strips any undefined fields so Firestore SDK never errors.
  */
 export async function updateUserProfile(
   uid: string,
@@ -150,18 +155,40 @@ export async function updateUserProfile(
 
   const userDocRef = doc(db, 'users', uid);
 
-  // Strip read-only or immutable fields
-  const safeUpdates: Record<string, any> = { ...profileUpdates };
-  delete safeUpdates.uid;
-  delete safeUpdates.createdAt;
+  // Strip read-only, immutable, and undefined fields
+  const safeUpdates: Record<string, any> = {};
+  for (const [key, val] of Object.entries(profileUpdates)) {
+    if (key === 'uid' || key === 'createdAt' || val === undefined) {
+      continue;
+    }
+    if (key === 'socialLinks' && typeof val === 'object' && val !== null) {
+      const cleanSocial: Record<string, string> = {};
+      const socialObj = val as Record<string, any>;
+      if (socialObj.linkedin !== undefined) cleanSocial.linkedin = socialObj.linkedin;
+      if (socialObj.github !== undefined) cleanSocial.github = socialObj.github;
+      if (socialObj.portfolio !== undefined) cleanSocial.portfolio = socialObj.portfolio;
+      safeUpdates.socialLinks = cleanSocial;
+    } else {
+      safeUpdates[key] = val;
+    }
+  }
 
   safeUpdates.updatedAt = serverTimestamp();
 
-  await updateDoc(userDocRef, safeUpdates);
+  // If document does not exist yet, create it; otherwise update
+  const snap = await getDoc(userDocRef);
+  if (!snap.exists()) {
+    safeUpdates.uid = uid;
+    safeUpdates.createdAt = serverTimestamp();
+    await setDoc(userDocRef, safeUpdates);
+  } else {
+    await updateDoc(userDocRef, safeUpdates);
+  }
 }
 
 /**
  * Converts a Firestore UserProfileDocument to the application's internal StudentProfile
+ * Respects real stored values (including empty strings) without resurrecting dummy fallbacks.
  */
 export function mapUserDocToStudentProfile(
   userDoc: UserProfileDocument,
@@ -169,22 +196,22 @@ export function mapUserDocToStudentProfile(
 ): StudentProfile {
   return {
     id: userDoc.uid,
-    fullName: userDoc.displayName || fallback.fullName,
-    email: userDoc.email || fallback.email,
-    phone: userDoc.phone || fallback.phone,
-    location: userDoc.location || fallback.location,
-    collegeOrUniversity: userDoc.collegeOrUniversity || fallback.collegeOrUniversity,
-    major: userDoc.major || fallback.major,
-    graduationYear: userDoc.graduationYear || fallback.graduationYear,
-    gpa: userDoc.gpa || fallback.gpa,
-    avatar: userDoc.avatar || fallback.avatar,
-    avatarUrl: userDoc.photoURL || fallback.avatarUrl,
-    targetRole: userDoc.targetRole || fallback.targetRole,
-    bio: userDoc.bio || fallback.bio,
+    fullName: userDoc.displayName !== undefined && userDoc.displayName !== null ? userDoc.displayName : (fallback.fullName || ''),
+    email: userDoc.email !== undefined && userDoc.email !== null ? userDoc.email : (fallback.email || ''),
+    phone: userDoc.phone !== undefined ? userDoc.phone : (fallback.phone || ''),
+    location: userDoc.location !== undefined ? userDoc.location : (fallback.location || ''),
+    collegeOrUniversity: userDoc.collegeOrUniversity !== undefined ? userDoc.collegeOrUniversity : (fallback.collegeOrUniversity || ''),
+    major: userDoc.major !== undefined ? userDoc.major : (fallback.major || ''),
+    graduationYear: userDoc.graduationYear !== undefined ? userDoc.graduationYear : (fallback.graduationYear || ''),
+    gpa: userDoc.gpa !== undefined ? userDoc.gpa : (fallback.gpa || ''),
+    avatar: userDoc.avatar || fallback.avatar || 'boy',
+    avatarUrl: userDoc.photoURL || fallback.avatarUrl || undefined,
+    targetRole: userDoc.targetRole !== undefined ? userDoc.targetRole : (fallback.targetRole || ''),
+    bio: userDoc.bio !== undefined ? userDoc.bio : (fallback.bio || ''),
     socialLinks: {
-      linkedin: userDoc.socialLinks?.linkedin || fallback.socialLinks?.linkedin,
-      github: userDoc.socialLinks?.github || fallback.socialLinks?.github,
-      portfolio: userDoc.socialLinks?.portfolio || fallback.socialLinks?.portfolio,
+      linkedin: userDoc.socialLinks?.linkedin !== undefined ? userDoc.socialLinks.linkedin : (fallback.socialLinks?.linkedin || ''),
+      github: userDoc.socialLinks?.github !== undefined ? userDoc.socialLinks.github : (fallback.socialLinks?.github || ''),
+      portfolio: userDoc.socialLinks?.portfolio !== undefined ? userDoc.socialLinks.portfolio : (fallback.socialLinks?.portfolio || ''),
     },
   };
 }

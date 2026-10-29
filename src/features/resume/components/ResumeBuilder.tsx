@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { exportResumeToPdf } from '../utils/pdfExport.ts';
 import { Logo } from '../../../components/ui/Logo.tsx';
+import { SocialFooter } from '../../../components/layout/SocialFooter.tsx';
 
 interface ResumeBuilderProps {
   onBackToDashboard: () => void;
@@ -43,7 +44,7 @@ interface ResumeBuilderProps {
 
 export function ResumeBuilder({
   onBackToDashboard,
-  studentName = 'Sanjay',
+  studentName = '',
   initialData,
   onResumeDataChange,
 }: ResumeBuilderProps) {
@@ -224,15 +225,17 @@ export function ResumeBuilder({
               )}
             </button>
 
-            {/* Student profile icon */}
-            <div className="flex items-center gap-2 pl-2 border-l border-[#E5E0D8]">
-              <div className="w-8 h-8 rounded-full bg-[#1C1C1C] text-white flex items-center justify-center text-xs font-bold ring-1 ring-[#E5E0D8]">
-                {studentName[0] || 'S'}
+            {/* Student profile icon (rendered only when genuine user exists) */}
+            {studentName ? (
+              <div className="flex items-center gap-2 pl-2 border-l border-[#E5E0D8]">
+                <div className="w-8 h-8 rounded-full bg-[#1C1C1C] text-white flex items-center justify-center text-xs font-bold ring-1 ring-[#E5E0D8]">
+                  {studentName[0].toUpperCase()}
+                </div>
+                <span className="hidden md:inline text-xs font-semibold text-[#101010]">
+                  {studentName}
+                </span>
               </div>
-              <span className="hidden md:inline text-xs font-semibold text-[#101010]">
-                {studentName}
-              </span>
-            </div>
+            ) : null}
           </div>
         </div>
       </header>
@@ -424,6 +427,9 @@ export function ResumeBuilder({
 
         </div>
       </main>
+
+      {/* Social Footer */}
+      <SocialFooter className="py-6" />
 
       {/* MOBILE PREVIEW MODAL */}
       {isMobilePreviewOpen && (

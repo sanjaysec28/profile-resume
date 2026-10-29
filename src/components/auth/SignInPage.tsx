@@ -17,6 +17,7 @@ import { useState } from 'react';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
 import { Logo } from '../ui/Logo.tsx';
 import { FadeImage } from '../ui/FadeImage.tsx';
+import { SocialFooter } from '../layout/SocialFooter.tsx';
 import { useAuth } from '../../context/AuthContext.tsx';
 
 export interface SignInPageProps {
@@ -257,10 +258,8 @@ export function SignInPage({
         </div>
       </main>
 
-      {/* Footer minimal info */}
-      <footer className="relative z-10 w-full max-w-7xl mx-auto px-6 sm:px-10 lg:px-16 pb-6 text-center lg:text-left text-xs text-[#A3A3A3]">
-        <span>ProFile · Premium Student Resume Builder &amp; ATS Checker</span>
-      </footer>
+      {/* Social Footer */}
+      <SocialFooter className="relative z-10 py-4 sm:py-6" />
     </div>
   );
 }

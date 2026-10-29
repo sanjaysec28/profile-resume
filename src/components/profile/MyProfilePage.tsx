@@ -6,7 +6,7 @@
  * Reusable, responsive profile workspace synchronized with ResumeData & StudentProfile.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StudentProfile, AvatarType } from '../../types/profile.ts';
 import {
   ResumeData,
@@ -52,6 +52,7 @@ import {
   X,
   LogOut,
   Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import {
   uploadProfileImageToCloudinary,
@@ -62,7 +63,7 @@ import {
 interface MyProfilePageProps {
   profile: StudentProfile;
   resumeData: ResumeData;
-  onUpdateProfile: (updated: StudentProfile) => void;
+  onUpdateProfile: (updated: StudentProfile) => Promise<void> | void;
   onUpdateResumeData: (updater: (prev: ResumeData) => ResumeData) => void;
   onNavigateToBuilder: () => void;
   onNavigateToAts: () => void;
@@ -177,12 +178,14 @@ export function MyProfilePage({
   };
 
   // Profile Save Handler (syncs both StudentProfile and resumeData.personalInfo)
-  const handleSaveProfileForm = (formData: Partial<StudentProfile>) => {
+  const handleSaveProfileForm = async (formData: Partial<StudentProfile>) => {
     const updatedProfile: StudentProfile = {
       ...profile,
       ...formData,
+      email: profile.email,
     };
-    onUpdateProfile(updatedProfile);
+
+    await onUpdateProfile(updatedProfile);
 
     // Sync shared fields to ResumeData
     onUpdateResumeData((prev) => ({
@@ -201,6 +204,8 @@ export function MyProfilePage({
       },
     }));
 
+    setExportNotice('Profile saved and synced to Firestore successfully!');
+    setTimeout(() => setExportNotice(null), 3500);
     setIsEditProfileOpen(false);
   };
 
@@ -316,28 +321,47 @@ export function MyProfilePage({
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex flex-col md:flex-row md:items-center gap-2.5">
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#101010] break-words">
-                {profile.fullName}
+                {profile.fullName || 'Student Profile'}
               </h1>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#F8F5EE] text-[#101010] border border-[#E5E0D8] rounded-full text-xs font-semibold self-center md:self-auto">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Verified Student</span>
-              </span>
+              {profile.email && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#F8F5EE] text-[#101010] border border-[#E5E0D8] rounded-full text-xs font-semibold self-center md:self-auto">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Google Account</span>
+                </span>
+              )}
             </div>
 
             <p className="text-sm sm:text-base font-semibold text-[#555555] break-words">
-              {profile.targetRole || 'Software Engineering & AI Student'}
+              {profile.targetRole || 'Target role not specified'}
             </p>
 
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-4 gap-y-1.5 text-xs text-[#777777] pt-1">
-              <span className="inline-flex items-center gap-1.5">
-                <GraduationCap className="w-4 h-4 text-[#101010]" />
-                <span>{profile.collegeOrUniversity}</span>
-              </span>
+              {profile.collegeOrUniversity ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <GraduationCap className="w-4 h-4 text-[#101010]" />
+                  <span>{profile.collegeOrUniversity}</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-[#A3A3A3]">
+                  <GraduationCap className="w-4 h-4 text-[#A3A3A3]" />
+                  <span>College / University not added</span>
+                </span>
+              )}
+
               <span>·</span>
-              <span className="inline-flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-[#101010]" />
-                <span>{profile.location || 'Chennai, Tamil Nadu'}</span>
-              </span>
+
+              {profile.location ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-[#101010]" />
+                  <span>{profile.location}</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-[#A3A3A3]">
+                  <MapPin className="w-3.5 h-3.5 text-[#A3A3A3]" />
+                  <span>Location not added</span>
+                </span>
+              )}
+
               {profile.gpa && (
                 <>
                   <span>·</span>
@@ -395,7 +419,7 @@ export function MyProfilePage({
             {totalProjects}
           </div>
           <span className="text-[11px] text-[#A3A3A3] block">
-            {totalProjects === 1 ? '1 active project' : `${totalProjects} portfolio items`}
+            {totalProjects === 0 ? 'No projects added' : totalProjects === 1 ? '1 active project' : `${totalProjects} portfolio items`}
           </span>
         </div>
 
@@ -407,7 +431,7 @@ export function MyProfilePage({
             {totalSkills}
           </div>
           <span className="text-[11px] text-[#A3A3A3] block">
-            Technical &amp; soft skills
+            {totalSkills === 0 ? 'No skills added' : `${totalSkills} technical & soft skills`}
           </span>
         </div>
 
@@ -418,19 +442,25 @@ export function MyProfilePage({
           <div className="text-2xl sm:text-3xl font-extrabold text-[#101010]">
             {totalCertifications}
           </div>
-          <span className="text-[11px] text-[#A3A3A3] block">Verified credentials</span>
+          <span className="text-[11px] text-[#A3A3A3] block">
+            {totalCertifications === 0 ? 'No credentials added' : `${totalCertifications} verified credentials`}
+          </span>
         </div>
 
         <div className="p-5 sm:p-6 bg-white border border-[#E5E0D8] rounded-2xl sm:rounded-3xl shadow-2xs space-y-1">
           <span className="text-[11px] font-bold uppercase tracking-wider text-[#777777]">
-            Latest ATS Match
+            Resume Readiness
           </span>
-          <div className="text-2xl sm:text-3xl font-extrabold text-emerald-600 flex items-center gap-1.5">
-            <span>{activeTemplate.atsScore}</span>
-            <ShieldCheck className="w-5 h-5 text-emerald-600" />
+          <div className="text-2xl sm:text-3xl font-extrabold text-[#101010] flex items-center gap-1.5">
+            {totalProjects > 0 || totalSkills > 0 || (resumeData.education && resumeData.education.length > 0) ? (
+              <span className="text-emerald-600">Active</span>
+            ) : (
+              <span className="text-[#A3A3A3]">—</span>
+            )}
+            <ShieldCheck className={`w-5 h-5 ${totalProjects > 0 || totalSkills > 0 ? 'text-emerald-600' : 'text-[#A3A3A3]'}`} />
           </div>
           <span className="text-[11px] text-[#A3A3A3] block">
-            Layout: {activeTemplate.name}
+            {totalProjects > 0 || totalSkills > 0 ? `Layout: ${activeTemplate.name}` : 'Draft in progress'}
           </span>
         </div>
       </div>
@@ -506,69 +536,65 @@ export function MyProfilePage({
               <div>
                 <span className="text-[#A3A3A3] font-medium block">Full Name</span>
                 <span className="text-sm font-semibold text-[#101010] mt-0.5 block break-words">
-                  {profile.fullName}
+                  {profile.fullName || '—'}
                 </span>
               </div>
 
               <div>
                 <span className="text-[#A3A3A3] font-medium block">Email Address</span>
-                <a
-                  href={`mailto:${profile.email}`}
-                  className="text-sm font-semibold text-[#101010] hover:underline mt-0.5 block break-all"
-                >
-                  {profile.email}
-                </a>
+                {profile.email ? (
+                  <a
+                    href={`mailto:${profile.email}`}
+                    className="text-sm font-semibold text-[#101010] hover:underline mt-0.5 block break-all"
+                  >
+                    {profile.email}
+                  </a>
+                ) : (
+                  <span className="text-sm font-semibold text-[#A3A3A3] mt-0.5 block">—</span>
+                )}
               </div>
 
-              {profile.phone && (
-                <div>
-                  <span className="text-[#A3A3A3] font-medium block">Phone Number</span>
-                  <span className="text-sm font-semibold text-[#101010] mt-0.5 block">
-                    {profile.phone}
-                  </span>
-                </div>
-              )}
+              <div>
+                <span className="text-[#A3A3A3] font-medium block">Phone Number</span>
+                <span className="text-sm font-semibold text-[#101010] mt-0.5 block">
+                  {profile.phone || '—'}
+                </span>
+              </div>
 
-              {profile.location && (
-                <div>
-                  <span className="text-[#A3A3A3] font-medium block">Location</span>
-                  <span className="text-sm font-semibold text-[#101010] mt-0.5 block">
-                    {profile.location}
-                  </span>
-                </div>
-              )}
+              <div>
+                <span className="text-[#A3A3A3] font-medium block">Location</span>
+                <span className="text-sm font-semibold text-[#101010] mt-0.5 block">
+                  {profile.location || '—'}
+                </span>
+              </div>
 
               <div>
                 <span className="text-[#A3A3A3] font-medium block">College / University</span>
                 <span className="text-sm font-semibold text-[#101010] mt-0.5 block break-words">
-                  {profile.collegeOrUniversity}
+                  {profile.collegeOrUniversity || '—'}
                 </span>
               </div>
 
               <div>
                 <span className="text-[#A3A3A3] font-medium block">Major &amp; Degree</span>
                 <span className="text-sm font-semibold text-[#101010] mt-0.5 block break-words">
-                  {profile.major}
+                  {profile.major || '—'}
                 </span>
               </div>
 
-              {profile.graduationYear && (
-                <div>
-                  <span className="text-[#A3A3A3] font-medium block">Graduation Year</span>
-                  <span className="text-sm font-semibold text-[#101010] mt-0.5 block">
-                    Class of {profile.graduationYear}
-                  </span>
-                </div>
-              )}
+              <div>
+                <span className="text-[#A3A3A3] font-medium block">Graduation Year</span>
+                <span className="text-sm font-semibold text-[#101010] mt-0.5 block">
+                  {profile.graduationYear ? `Class of ${profile.graduationYear}` : '—'}
+                </span>
+              </div>
 
-              {profile.gpa && (
-                <div>
-                  <span className="text-[#A3A3A3] font-medium block">CGPA / Score</span>
-                  <span className="text-sm font-semibold text-[#101010] mt-0.5 block">
-                    {profile.gpa}
-                  </span>
-                </div>
-              )}
+              <div>
+                <span className="text-[#A3A3A3] font-medium block">CGPA / Score</span>
+                <span className="text-sm font-semibold text-[#101010] mt-0.5 block">
+                  {profile.gpa || '—'}
+                </span>
+              </div>
 
               {profile.socialLinks?.linkedin && (
                 <div>
@@ -908,7 +934,7 @@ export function MyProfilePage({
                 <h3 className="font-bold text-sm text-[#101010]">Active Resume</h3>
               </div>
               <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-[#EBF5EE] text-[#1E5631] border border-[#CDE5D2]">
-                {activeTemplate.atsScore} ATS
+                ATS Compatible
               </span>
             </div>
 
@@ -1424,76 +1450,133 @@ function EditProfileModal({
   initialProfile: StudentProfile;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: Partial<StudentProfile>) => void;
+  onSave: (data: Partial<StudentProfile>) => Promise<void> | void;
 }) {
-  const [fullName, setFullName] = useState(initialProfile.fullName);
-  const [email, setEmail] = useState(initialProfile.email);
+  const [fullName, setFullName] = useState(initialProfile.fullName || '');
   const [phone, setPhone] = useState(initialProfile.phone || '');
   const [location, setLocation] = useState(initialProfile.location || '');
   const [targetRole, setTargetRole] = useState(initialProfile.targetRole || '');
   const [collegeOrUniversity, setCollegeOrUniversity] = useState(
-    initialProfile.collegeOrUniversity
+    initialProfile.collegeOrUniversity || ''
   );
-  const [major, setMajor] = useState(initialProfile.major);
-  const [graduationYear, setGraduationYear] = useState(initialProfile.graduationYear);
+  const [major, setMajor] = useState(initialProfile.major || '');
+  const [graduationYear, setGraduationYear] = useState(initialProfile.graduationYear || '');
   const [gpa, setGpa] = useState(initialProfile.gpa || '');
+  const [bio, setBio] = useState(initialProfile.bio || '');
   const [linkedin, setLinkedin] = useState(initialProfile.socialLinks?.linkedin || '');
   const [github, setGithub] = useState(initialProfile.socialLinks?.github || '');
   const [portfolio, setPortfolio] = useState(initialProfile.socialLinks?.portfolio || '');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Re-synchronize form fields whenever initialProfile or open state changes
+  useEffect(() => {
+    if (isOpen) {
+      setFullName(initialProfile.fullName || '');
+      setPhone(initialProfile.phone || '');
+      setLocation(initialProfile.location || '');
+      setTargetRole(initialProfile.targetRole || '');
+      setCollegeOrUniversity(initialProfile.collegeOrUniversity || '');
+      setMajor(initialProfile.major || '');
+      setGraduationYear(initialProfile.graduationYear || '');
+      setGpa(initialProfile.gpa || '');
+      setBio(initialProfile.bio || '');
+      setLinkedin(initialProfile.socialLinks?.linkedin || '');
+      setGithub(initialProfile.socialLinks?.github || '');
+      setPortfolio(initialProfile.socialLinks?.portfolio || '');
+      setFormError(null);
+    }
+  }, [isOpen, initialProfile]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({
-      fullName,
-      email,
-      phone,
-      location,
-      targetRole,
-      collegeOrUniversity,
-      major,
-      graduationYear,
-      gpa,
-      socialLinks: {
-        linkedin,
-        github,
-        portfolio,
-      },
-    });
+
+    if (!fullName.trim()) {
+      setFormError('Please enter your full name.');
+      return;
+    }
+
+    setIsSaving(true);
+    setFormError(null);
+
+    try {
+      await onSave({
+        fullName: fullName.trim(),
+        email: initialProfile.email,
+        phone: phone.trim(),
+        location: location.trim(),
+        targetRole: targetRole.trim(),
+        collegeOrUniversity: collegeOrUniversity.trim(),
+        major: major.trim(),
+        graduationYear: graduationYear.trim(),
+        gpa: gpa.trim(),
+        bio: bio.trim(),
+        socialLinks: {
+          linkedin: linkedin.trim(),
+          github: github.trim(),
+          portfolio: portfolio.trim(),
+        },
+      });
+      onClose();
+    } catch (err: any) {
+      console.error('[EditProfileModal Error]:', err);
+      setFormError(err.message || 'Failed to save changes. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <Dialog
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={() => {
+        if (!isSaving) onClose();
+      }}
       title="Edit Student Information"
-      description="Update your credentials and personal contact details."
+      description="Update your credentials and personal contact details stored in your Firestore profile."
     >
       <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        {formError && (
+          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+            <span>{formError}</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <Input
             label="Full Name *"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
+            placeholder="e.g. Jane Doe"
             required
+            disabled={isSaving}
           />
-          <Input
-            label="Email Address *"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+          <div>
+            <label className="text-xs font-medium text-[#101010] block mb-1">
+              Google Account Email
+            </label>
+            <div className="h-10 px-3.5 rounded-xl bg-[#EAE5DC]/50 border border-[#E5E0D8] text-xs text-[#555555] flex items-center justify-between">
+              <span className="truncate">{initialProfile.email || '—'}</span>
+              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md shrink-0">
+                Google Verified
+              </span>
+            </div>
+          </div>
           <Input
             label="Phone Number"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            placeholder="+91 98765 43210"
+            placeholder="e.g. +1 (555) 000-0000"
+            disabled={isSaving}
           />
           <Input
             label="Location"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            placeholder="Chennai, Tamil Nadu"
+            placeholder="e.g. San Francisco, CA"
+            disabled={isSaving}
           />
         </div>
 
@@ -1502,34 +1585,50 @@ function EditProfileModal({
             label="Professional Title / Target Role"
             value={targetRole}
             onChange={(e) => setTargetRole(e.target.value)}
-            placeholder="AI & Data Science Student"
+            placeholder="e.g. Computer Science Student"
+            disabled={isSaving}
           />
           <Input
-            label="College / University *"
+            label="College / University"
             value={collegeOrUniversity}
             onChange={(e) => setCollegeOrUniversity(e.target.value)}
-            required
+            placeholder="e.g. State University"
+            disabled={isSaving}
           />
           <Input
             label="Degree & Major"
             value={major}
             onChange={(e) => setMajor(e.target.value)}
-            placeholder="B.Tech Artificial Intelligence"
+            placeholder="e.g. B.S. in Computer Science"
+            disabled={isSaving}
           />
           <div className="grid grid-cols-2 gap-2">
             <Input
               label="Grad Year"
               value={graduationYear}
               onChange={(e) => setGraduationYear(e.target.value)}
-              placeholder="2028"
+              placeholder="e.g. 2028"
+              disabled={isSaving}
             />
             <Input
               label="GPA / Score"
               value={gpa}
               onChange={(e) => setGpa(e.target.value)}
-              placeholder="8.5 CGPA"
+              placeholder="e.g. 3.8 / 4.0"
+              disabled={isSaving}
             />
           </div>
+        </div>
+
+        <div className="pt-2 border-t border-[#E5E0D8]">
+          <Textarea
+            label="Professional Bio / Objective"
+            rows={2}
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            placeholder="Brief statement about your academic background and career goals..."
+            disabled={isSaving}
+          />
         </div>
 
         <div className="pt-2 border-t border-[#E5E0D8] space-y-3">
@@ -1542,28 +1641,43 @@ function EditProfileModal({
               value={linkedin}
               onChange={(e) => setLinkedin(e.target.value)}
               placeholder="https://linkedin.com/in/..."
+              disabled={isSaving}
             />
             <Input
               label="GitHub URL"
               value={github}
               onChange={(e) => setGithub(e.target.value)}
               placeholder="https://github.com/..."
+              disabled={isSaving}
             />
             <Input
               label="Website / Portfolio"
               value={portfolio}
               onChange={(e) => setPortfolio(e.target.value)}
               placeholder="https://..."
+              disabled={isSaving}
             />
           </div>
         </div>
 
         <div className="pt-4 flex justify-end gap-2.5">
-          <Button variant="secondary" size="sm" type="button" onClick={onClose}>
+          <Button
+            variant="secondary"
+            size="sm"
+            type="button"
+            onClick={onClose}
+            disabled={isSaving}
+          >
             Cancel
           </Button>
-          <Button variant="primary" size="sm" type="submit">
-            Save Changes
+          <Button
+            variant="primary"
+            size="sm"
+            type="submit"
+            isLoading={isSaving}
+            disabled={isSaving}
+          >
+            {isSaving ? 'Saving to Firestore...' : 'Save Changes'}
           </Button>
         </div>
       </form>
@@ -1716,7 +1830,7 @@ function ProjectDialog({
           label="Project Title *"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g. ResilientX AI"
+          placeholder="e.g. Distributed Task Scheduler"
           required
         />
         <Input
@@ -1812,7 +1926,7 @@ function ExperienceDialog({
             label="Company / Organization *"
             value={company}
             onChange={(e) => setCompany(e.target.value)}
-            placeholder="e.g. Paytm / Google"
+            placeholder="e.g. Acme Corporation"
             required
           />
         </div>

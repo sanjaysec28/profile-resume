@@ -110,7 +110,7 @@ export function ProjectsStep({ data, onChange }: ProjectsStepProps) {
             {/* Title */}
             <Input
               label="Project Title"
-              placeholder="e.g. ResilientX"
+              placeholder="e.g. Distributed Task Scheduler"
               value={proj.title}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 handleUpdateProject(proj.id, 'title', e.target.value)

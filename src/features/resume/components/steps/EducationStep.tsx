@@ -96,13 +96,13 @@ export function EducationStep({ data, onChange }: EducationStepProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
                   label="Institution / School Name"
-                  placeholder="e.g. Saveetha Engineering College"
+                  placeholder="e.g. State University"
                   value={edu.institution}
                   onChange={(e) => handleUpdateItem(edu.id, 'institution', e.target.value)}
                 />
                 <Input
                   label="Degree / Examination"
-                  placeholder="e.g. B.Tech / Higher Secondary"
+                  placeholder="e.g. Bachelor of Science"
                   value={edu.degree}
                   onChange={(e) => handleUpdateItem(edu.id, 'degree', e.target.value)}
                 />
