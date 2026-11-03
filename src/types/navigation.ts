@@ -7,6 +7,8 @@ export type AppView =
   | 'welcome'
   | 'signin'
   | 'dashboard'
+  | 'resume-setup'
+  | 'resume-recommendations'
   | 'resume-builder'
   | 'resume-templates'
   | 'resume-editor'
@@ -14,6 +16,9 @@ export type AppView =
   | 'ats-upload'
   | 'ats-results'
   | 'profile'
+  | 'career-intelligence'
+  | 'interview-prep'
+  | 'placement-intelligence'
   | 'history'
   | 'design-system';
 

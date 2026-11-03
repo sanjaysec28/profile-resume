@@ -7,13 +7,16 @@ import { useState } from 'react';
 import { ResumeData } from '../../../../types/resume.ts';
 import { COMMON_TECHNICAL_SKILLS, COMMON_SOFT_SKILLS } from '../../constants.ts';
 import { X, Plus } from 'lucide-react';
+import { AiInlineTrigger } from '../assistant/AiInlineTrigger.tsx';
+import { ContentAssistantAction, ContentAssistantSection } from '../../../../types/assistant.ts';
 
 interface SkillsStepProps {
   data: ResumeData;
   onChange: (updater: (prev: ResumeData) => ResumeData) => void;
+  onOpenAssistant?: (section: ContentAssistantSection, action?: ContentAssistantAction, content?: string | string[]) => void;
 }
 
-export function SkillsStep({ data, onChange }: SkillsStepProps) {
+export function SkillsStep({ data, onChange, onOpenAssistant }: SkillsStepProps) {
   const [activeTab, setActiveTab] = useState<'technical' | 'soft'>('technical');
   const [newSkill, setNewSkill] = useState('');
 
@@ -52,29 +55,41 @@ export function SkillsStep({ data, onChange }: SkillsStepProps) {
   return (
     <div className="space-y-6">
       {/* Segmented Tab Bar matching reference */}
-      <div className="inline-flex p-1 bg-[#EAE5DC] rounded-xl border border-[#DDD5C7]">
-        <button
-          type="button"
-          onClick={() => setActiveTab('technical')}
-          className={`px-5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer ${
-            activeTab === 'technical'
-              ? 'bg-[#101010] text-white shadow-xs'
-              : 'text-[#555555] hover:text-[#101010]'
-          }`}
-        >
-          Technical Skills
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('soft')}
-          className={`px-5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer ${
-            activeTab === 'soft'
-              ? 'bg-[#101010] text-white shadow-xs'
-              : 'text-[#555555] hover:text-[#101010]'
-          }`}
-        >
-          Soft Skills
-        </button>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="inline-flex p-1 bg-[#EAE5DC] rounded-xl border border-[#DDD5C7]">
+          <button
+            type="button"
+            onClick={() => setActiveTab('technical')}
+            className={`px-5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer ${
+              activeTab === 'technical'
+                ? 'bg-[#101010] text-white shadow-xs'
+                : 'text-[#555555] hover:text-[#101010]'
+            }`}
+          >
+            Technical Skills
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('soft')}
+            className={`px-5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer ${
+              activeTab === 'soft'
+                ? 'bg-[#101010] text-white shadow-xs'
+                : 'text-[#555555] hover:text-[#101010]'
+            }`}
+          >
+            Soft Skills
+          </button>
+        </div>
+
+        {onOpenAssistant && (
+          <AiInlineTrigger
+            section={activeTab === 'technical' ? 'technical_skills' : 'soft_skills'}
+            label={activeTab === 'technical' ? 'AI Skills Assist' : 'AI Soft Skills'}
+            onOpenAssistant={(sec, act) =>
+              onOpenAssistant(sec, act, currentSkills.join(', '))
+            }
+          />
+        )}
       </div>
 
       {/* Input + Add Button */}

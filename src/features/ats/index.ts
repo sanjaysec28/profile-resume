@@ -2,11 +2,17 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * ATS Feature Module — Prepared for Phase 2+
- * Covers ATS File Upload, Keyword Matching, and Score Breakdown.
+ * ATS Feature Module — ProFile Real Resume Analysis Engine
  */
 
 export * from '../../types/ats.ts';
+export * from './types.ts';
+export * from './utils/textExtractor.ts';
+export * from './utils/jobDescriptionParser.ts';
+export * from './utils/atsCompatibilityChecker.ts';
+export * from './utils/atsScoringEngine.ts';
+export * from './utils/summaryGenerator.ts';
+export * from './tests/atsEngineTest.ts';
 
 export const ATS_BENCHMARKS = {
   excellentThreshold: 85,

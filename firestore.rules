@@ -22,6 +22,56 @@ service cloud.firestore {
 
       // Disallow user profile document deletion from client
       allow delete: if false;
+
+      // Resume setup wizard documents stored at users/{userId}/resumeSetups/{setupId}
+      match /resumeSetups/{setupId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Resume review documents stored at users/{userId}/resumeReviews/{reviewId}
+      match /resumeReviews/{reviewId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Career intelligence documents stored at users/{userId}/careerIntelligence/{careerPlanId}
+      match /careerIntelligence/{careerPlanId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Interview sessions stored at users/{userId}/interviewSessions/{sessionId}
+      match /interviewSessions/{sessionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Interview topic progress stored at users/{userId}/interviewProgress/{progressId}
+      match /interviewProgress/{progressId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Saved interview plans stored at users/{userId}/interviewPlans/{planId}
+      match /interviewPlans/{planId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Phase 7: Saved jobs stored at users/{userId}/savedJobs/{jobId}
+      match /savedJobs/{jobId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Phase 7: Applications tracked at users/{userId}/applications/{applicationId}
+      match /applications/{applicationId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Phase 7: Job match analyses stored at users/{userId}/jobMatches/{matchId}
+      match /jobMatches/{matchId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Phase 7: Application drafts stored at users/{userId}/applicationDrafts/{draftId}
+      match /applicationDrafts/{draftId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     // Helper function to validate allowed fields and types for user profiles

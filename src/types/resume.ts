@@ -50,6 +50,15 @@ export interface ResumeCertification {
   credentialUrl?: string;
 }
 
+export interface ResumeLeadership {
+  id: string;
+  role: string;
+  organization: string;
+  duration?: string;
+  description: string;
+  bullets?: string[];
+}
+
 export type ResumeTemplateId =
   | 'modern'
   | 'classic'
@@ -83,6 +92,7 @@ export interface ResumeData {
     github?: string;
     summary: string;
     photoUrl?: string;
+    showPhoto?: boolean; // Controls whether profile photo is rendered in resume templates
   };
   education: ResumeEducation[];
   experience: ResumeExperience[];
@@ -95,4 +105,8 @@ export interface ResumeData {
   certifications?: ResumeCertification[];
   achievements?: string[];
   coursework?: string[];
+  positionsOfResponsibility?: ResumeLeadership[];
+  sectionOrder?: string[];
+  sectionVisibility?: Record<string, boolean>;
+  customHeadings?: Record<string, string>;
 }

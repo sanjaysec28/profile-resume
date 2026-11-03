@@ -19,17 +19,35 @@ export const RESUME_STEPS: StepItem[] = [
   { id: 3, key: 'skills', title: 'Skills', description: 'Add your technical and soft skills.' },
   { id: 4, key: 'projects', title: 'Projects', description: 'Add your best projects.' },
   { id: 5, key: 'experience', title: 'Experience', description: 'Add your work experience or internships.' },
-  { id: 6, key: 'certifications', title: 'Certifications', description: 'Add your certifications, courses or achievements.' },
-  { id: 7, key: 'preview', title: 'Preview', description: 'Select a resume template that matches your style.' },
+  { id: 6, key: 'certifications', title: 'Credentials & More', description: 'Certifications, achievements, leadership & coursework.' },
+  { id: 7, key: 'preview', title: 'Preview & Template', description: 'Select a resume template that matches your style.' },
 ];
 
 interface ResumeSidebarProps {
   activeStep: number;
   onStepSelect: (stepId: number) => void;
   className?: string;
+  onOpenSectionManager?: () => void;
+  onOpenContentAssistant?: () => void;
+  onOpenReview?: () => void;
+  reviewStatus?: string;
+  onNavigateToCareer?: () => void;
+  onNavigateToInterview?: () => void;
+  onNavigateToPlacement?: () => void;
 }
 
-export function ResumeSidebar({ activeStep, onStepSelect, className = '' }: ResumeSidebarProps) {
+export function ResumeSidebar({
+  activeStep,
+  onStepSelect,
+  className = '',
+  onOpenSectionManager,
+  onOpenContentAssistant,
+  onOpenReview,
+  reviewStatus,
+  onNavigateToCareer,
+  onNavigateToInterview,
+  onNavigateToPlacement,
+}: ResumeSidebarProps) {
   return (
     <aside
       className={`w-full lg:w-[210px] xl:w-[220px] shrink-0 bg-[#1C1C1C] text-white rounded-[26px] p-3 sm:p-4 flex flex-col justify-between shadow-md ${className}`}
@@ -71,6 +89,81 @@ export function ResumeSidebar({ activeStep, onStepSelect, className = '' }: Resu
             </button>
           );
         })}
+
+        {/* Phase 3 & 4 Tools: Review, Section Manager & AI Assistant */}
+        <div className="pt-3 border-t border-[#2C2C2C] space-y-1">
+          {onOpenReview && (
+            <button
+              type="button"
+              onClick={onOpenReview}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs font-bold text-amber-400 bg-amber-950/30 hover:bg-amber-950/50 border border-amber-800/40 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                <span>Review My Resume</span>
+              </div>
+              {reviewStatus && reviewStatus !== 'not-reviewed' && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-900/60 text-amber-200">
+                  {reviewStatus === 'ready-for-export' ? '✓ Ready' : 'QA'}
+                </span>
+              )}
+            </button>
+          )}
+
+          {onNavigateToCareer && (
+            <button
+              type="button"
+              onClick={onNavigateToCareer}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold text-blue-300 hover:text-blue-200 hover:bg-[#282828] transition-colors cursor-pointer"
+            >
+              <span className="w-2 h-2 rounded-full bg-blue-400" />
+              <span className="truncate">Career Roadmap</span>
+            </button>
+          )}
+
+          {onNavigateToInterview && (
+            <button
+              type="button"
+              onClick={onNavigateToInterview}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-[#282828] transition-colors cursor-pointer"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="truncate">Interview Prep</span>
+            </button>
+          )}
+
+          {onNavigateToPlacement && (
+            <button
+              type="button"
+              onClick={onNavigateToPlacement}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold text-indigo-300 hover:text-indigo-200 hover:bg-[#282828] transition-colors cursor-pointer"
+            >
+              <span className="w-2 h-2 rounded-full bg-indigo-400" />
+              <span className="truncate">Jobs & Placement</span>
+            </button>
+          )}
+
+          {onOpenContentAssistant && (
+            <button
+              type="button"
+              onClick={onOpenContentAssistant}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold text-[#D4AF37] hover:text-amber-200 hover:bg-[#282828] transition-colors cursor-pointer"
+            >
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              <span className="truncate">AI Content Assistant</span>
+            </button>
+          )}
+
+          {onOpenSectionManager && (
+            <button
+              type="button"
+              onClick={onOpenSectionManager}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold text-[#A3A3A3] hover:text-white hover:bg-[#282828] transition-colors cursor-pointer"
+            >
+              <span className="text-[11px] uppercase tracking-wider">⚙ Manage Sections</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Subtle bottom brand status */}

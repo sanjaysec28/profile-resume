@@ -8,13 +8,21 @@ import { Input } from '../../../../components/ui/Input.tsx';
 import { Textarea } from '../../../../components/ui/Textarea.tsx';
 import { Select } from '../../../../components/ui/Select.tsx';
 import { Plus, Trash2, Briefcase } from 'lucide-react';
+import { AiInlineTrigger } from '../assistant/AiInlineTrigger.tsx';
+import { ContentAssistantAction, ContentAssistantSection } from '../../../../types/assistant.ts';
 
 interface ExperienceStepProps {
   data: ResumeData;
   onChange: (updater: (prev: ResumeData) => ResumeData) => void;
+  onOpenAssistant?: (
+    section: ContentAssistantSection,
+    action?: ContentAssistantAction,
+    content?: string,
+    context?: { itemId?: string; itemTitle?: string; itemTechStack?: string[] }
+  ) => void;
 }
 
-export function ExperienceStep({ data, onChange }: ExperienceStepProps) {
+export function ExperienceStep({ data, onChange, onOpenAssistant }: ExperienceStepProps) {
   const experiences = data.experience;
 
   const handleAddExperience = () => {
@@ -156,9 +164,31 @@ export function ExperienceStep({ data, onChange }: ExperienceStepProps) {
 
             {/* Description */}
             <div className="space-y-1">
-              <label className="text-xs font-medium text-[#101010]">
-                Description & Key Achievements
-              </label>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium text-[#101010]">
+                    Description &amp; Key Achievements
+                  </label>
+                  {onOpenAssistant && (
+                    <AiInlineTrigger
+                      section="experience"
+                      compact
+                      label="AI Polish"
+                      onOpenAssistant={(sec, act) =>
+                        onOpenAssistant(
+                          sec,
+                          act,
+                          exp.bullets?.length ? exp.bullets.join('\n') : exp.description,
+                          {
+                            itemId: exp.id,
+                            itemTitle: `${exp.position} at ${exp.company}`,
+                          }
+                        )
+                      }
+                    />
+                  )}
+                </div>
+              </div>
               <Textarea
                 rows={3}
                 placeholder="• Worked on AI agents for customer onboarding&#10;• Collaborated with cross-functional teams&#10;• Gained experience in real-world product development"

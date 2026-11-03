@@ -5,8 +5,13 @@
 
 import { useState } from 'react';
 import { ResumeData, ResumeTemplateId } from '../../../../types/resume.ts';
-import { RESUME_TEMPLATES_CATALOG, ResumeTemplateInfo } from '../../constants.ts';
-import { Check, Sparkles, ShieldCheck, Eye } from 'lucide-react';
+import {
+  ACTIVE_RESUME_TEMPLATES,
+  LEGACY_RESUME_TEMPLATES,
+  RESUME_TEMPLATES_CATALOG,
+  ResumeTemplateInfo,
+} from '../../constants.ts';
+import { Check, ShieldCheck, Eye, Sparkles, AlertCircle } from 'lucide-react';
 
 interface TemplateSelectStepProps {
   data: ResumeData;
@@ -19,7 +24,6 @@ export function TemplateSelectStep({
   onChange,
   onGeneratePreview,
 }: TemplateSelectStepProps) {
-  const [filter, setFilter] = useState<'all' | 'ats-first' | 'visual-first'>('all');
   const currentTemplate = data.templateId || 'modern';
 
   const handleSelect = (id: ResumeTemplateId) => {
@@ -29,74 +33,64 @@ export function TemplateSelectStep({
     }));
   };
 
-  const filteredTemplates = RESUME_TEMPLATES_CATALOG.filter((t) => {
-    if (filter === 'ats-first') return t.category === 'ats-first';
-    if (filter === 'visual-first') return t.category === 'visual-first';
-    return true;
-  });
+  const isCurrentLegacy = LEGACY_RESUME_TEMPLATES.some(
+    (t) => t.id === currentTemplate
+  );
 
   const activeTemplateInfo =
     RESUME_TEMPLATES_CATALOG.find((t) => t.id === currentTemplate) ||
-    RESUME_TEMPLATES_CATALOG[0];
+    ACTIVE_RESUME_TEMPLATES[0];
 
   return (
     <div className="space-y-6">
-      {/* Category Filter Pills & Description */}
+      {/* Header & ATS Guarantee Badge */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E5E0D8]">
         <div>
-          <h3 className="text-base font-bold text-[#101010]">
-            Choose from 10 Professional Resume Layouts
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-bold text-[#101010]">
+              Choose from 5 Curated Professional Resume Layouts
+            </h3>
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#101010] text-white">
+              <Sparkles className="w-2.5 h-2.5 text-amber-300" />
+              Recruiter Curated
+            </span>
+          </div>
           <p className="text-xs text-[#777777] mt-0.5">
-            Every template is precision-crafted for A4 single-page and multi-page printing with high ATS parse rates.
+            The top 5 recruiter-tested, ATS-friendly templates optimized for tech internships, campus placements, and corporate roles.
           </p>
         </div>
 
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-[#EAE5DC]/60 rounded-xl self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setFilter('all')}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              filter === 'all'
-                ? 'bg-white text-[#101010] shadow-xs'
-                : 'text-[#777777] hover:text-[#101010]'
-            }`}
-          >
-            All ({RESUME_TEMPLATES_CATALOG.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter('ats-first')}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              filter === 'ats-first'
-                ? 'bg-white text-[#101010] shadow-xs'
-                : 'text-[#777777] hover:text-[#101010]'
-            }`}
-          >
-            ATS-First (95%+)
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter('visual-first')}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              filter === 'visual-first'
-                ? 'bg-white text-[#101010] shadow-xs'
-                : 'text-[#777777] hover:text-[#101010]'
-            }`}
-          >
-            Visual & Creative
-          </button>
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-[#EBF5EE] text-[#1E5631] border border-[#CDE5D2] rounded-xl self-start sm:self-auto text-xs font-semibold">
+          <ShieldCheck className="w-3.5 h-3.5 text-[#1E5631]" />
+          <span>94%–99% ATS Parse Rate</span>
         </div>
       </div>
 
-      {/* Templates 10-Item Grid */}
+      {/* Legacy Template Notification Banner (if viewing an existing resume saved with a legacy template) */}
+      {isCurrentLegacy && (
+        <div className="flex items-start sm:items-center justify-between gap-3 p-3.5 bg-[#FAF7F0] border border-[#E8DEC8] rounded-2xl text-xs text-[#6B551E]">
+          <div className="flex items-start sm:items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
+            <div>
+              <span className="font-bold text-[#101010]">
+                Legacy Layout Active: {activeTemplateInfo.name}
+              </span>
+              <p className="text-[11px] text-[#777777] mt-0.5">
+                This resume is saved with the legacy <strong className="text-[#101010]">{activeTemplateInfo.name}</strong> template. Its styling and content are fully preserved. You can keep it as-is or switch to any of the 5 curated templates below.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active 5-Template Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
-        {filteredTemplates.map((tpl) => {
+        {ACTIVE_RESUME_TEMPLATES.map((tpl) => {
           const isSelected =
             currentTemplate === tpl.id ||
-            (currentTemplate === 'minimal-cream' && tpl.id === 'modern') ||
-            (currentTemplate === 'executive-mono' && tpl.id === 'classic');
+            (currentTemplate === 'minimal-cream' && tpl.id === 'minimal') ||
+            (currentTemplate === 'modern-student' && tpl.id === 'modern') ||
+            (currentTemplate === 'technical-clean' && tpl.id === 'technical');
 
           return (
             <div
@@ -168,6 +162,11 @@ export function TemplateSelectStep({
             <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-[#EBF5EE] text-[#1E5631] border border-[#CDE5D2]">
               ATS Score: {activeTemplateInfo.atsScore} Match
             </span>
+            {isCurrentLegacy && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200">
+                Legacy Mode Preserved
+              </span>
+            )}
           </div>
           <p className="text-xs text-[#666666] max-w-2xl">
             {activeTemplateInfo.description}

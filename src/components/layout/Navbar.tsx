@@ -10,9 +10,8 @@
  * - Compact mobile navbar with polished hamburger toggle and no overflow
  */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { AppView } from '../../types/navigation.ts';
-import { Avatar } from '../ui/Avatar.tsx';
 import { AvatarType } from '../../types/profile.ts';
 import { Logo } from '../ui/Logo.tsx';
 import { cn } from '../../lib/utils.ts';
@@ -24,6 +23,10 @@ import {
   CheckCircle2,
   User,
   LogOut,
+  Compass,
+  Mic,
+  Briefcase,
+  ChevronDown,
 } from 'lucide-react';
 
 export interface NavbarProps {
@@ -46,11 +49,27 @@ export function Navbar({
   onSignOut,
 }: NavbarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
 
-  // 4 Core user-facing navigation items
+  // Close account dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
+        setIsAccountMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Core user-facing navigation items
   const navLinks: { view: AppView; label: string; icon: typeof LayoutDashboard }[] = [
     { view: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { view: 'resume-builder', label: 'Resume Builder', icon: FileText },
+    { view: 'career-intelligence', label: 'Career Roadmap', icon: Compass },
+    { view: 'interview-prep', label: 'Interview Prep', icon: Mic },
+    { view: 'placement-intelligence', label: 'Jobs & Placements', icon: Briefcase },
     { view: 'ats-upload', label: 'ATS Checker', icon: CheckCircle2 },
     { view: 'profile', label: 'My Profile', icon: User },
   ];
@@ -58,13 +77,17 @@ export function Navbar({
   const handleNavClick = (view: AppView) => {
     onNavigate(view);
     setIsMobileMenuOpen(false);
+    setIsAccountMenuOpen(false);
   };
+
+  const displayName = userName ? userName.trim().split(/\s+/)[0] : 'Sanjay';
+  const initial = (displayName.charAt(0) || 'S').toUpperCase();
 
   return (
     <header className="sticky top-2 sm:top-4 z-40 w-full px-3 sm:px-6 pointer-events-none select-none">
-      <div className="pointer-events-auto max-w-5xl mx-auto">
+      <div className="pointer-events-auto max-w-6xl mx-auto">
         {/* Floating Pill Container: White rounded container with subtle shadow */}
-        <div className="bg-white/95 backdrop-blur-md border border-[#E5E0D8] rounded-full shadow-[0_4px_24px_rgba(16,16,16,0.06),0_1px_3px_rgba(16,16,16,0.03)] px-3.5 sm:px-6 h-16 sm:h-18 flex items-center justify-between gap-3 sm:gap-6 transition-all duration-200">
+        <div className="bg-white/95 backdrop-blur-md border border-[#E5E0D8] rounded-full shadow-[0_4px_24px_rgba(16,16,16,0.06),0_1px_3px_rgba(16,16,16,0.03)] px-3.5 sm:px-6 h-16 sm:h-18 flex items-center justify-between gap-2.5 sm:gap-4 transition-all duration-200">
           {/* Zone 1: Official Brand Logo on the left */}
           <button
             onClick={() => handleNavClick('dashboard')}
@@ -76,15 +99,20 @@ export function Navbar({
 
           {/* Zone 2: Centered Desktop Pill Navigation Links with fully rounded tabs */}
           {showAllNav && (
-            <nav className="hidden md:flex items-center gap-1.5 p-1 bg-[#F5F2EB] rounded-full border border-[#E8E2D7]">
+            <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1 p-1 bg-[#F5F2EB] rounded-full border border-[#E8E2D7]">
               {navLinks.map((item) => {
-                const isActive = currentView === item.view;
+                const isActive =
+                  item.view === 'resume-builder'
+                    ? currentView === 'resume-builder' ||
+                      currentView === 'resume-setup' ||
+                      currentView === 'resume-recommendations'
+                    : currentView === item.view;
                 return (
                   <button
                     key={item.view}
                     onClick={() => handleNavClick(item.view)}
                     className={cn(
-                      'px-4 sm:px-4.5 py-2 text-xs lg:text-[13px] font-semibold rounded-full transition-all duration-200 whitespace-nowrap cursor-pointer',
+                      'px-2.5 xl:px-3.5 py-1.5 text-xs xl:text-[13px] font-semibold rounded-full transition-all duration-200 whitespace-nowrap cursor-pointer',
                       isActive
                         ? 'bg-[#101010] text-[#F8F5EE] shadow-sm'
                         : 'text-[#666666] hover:text-[#101010] hover:bg-white/80'
@@ -97,8 +125,8 @@ export function Navbar({
             </nav>
           )}
 
-          {/* Zone 3: Right Action — User Profile plus Logout icon */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          {/* Zone 3: Right Action — Compact Circular Initial Avatar with Popover */}
+          <div className="flex items-center gap-2 shrink-0">
             {currentView === 'welcome' ? (
               <button
                 onClick={onGetStartedClick || (() => handleNavClick('dashboard'))}
@@ -107,36 +135,59 @@ export function Navbar({
                 Get Started
               </button>
             ) : (
-              <button
-                onClick={() => handleNavClick('profile')}
-                className={cn(
-                  'flex items-center gap-2 p-1 sm:pl-1.5 sm:pr-3.5 rounded-full border transition-all cursor-pointer group shadow-2xs',
-                  currentView === 'profile'
-                    ? 'bg-[#101010] text-[#F8F5EE] border-[#101010]'
-                    : 'bg-[#F8F8F6] hover:bg-white border-[#E5E0D8] text-[#101010]'
-                )}
-                aria-label="Student profile"
-              >
-                <Avatar type={userAvatar} size="sm" />
-                {userName ? (
-                  <span className="hidden sm:inline text-xs font-semibold tracking-tight">
-                    {userName.split(' ')[0]}
-                  </span>
-                ) : null}
-              </button>
-            )}
+              <div className="relative" ref={accountMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsAccountMenuOpen((prev) => !prev)}
+                  className={cn(
+                    'w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-sm sm:text-base text-white transition-all active:scale-95 cursor-pointer shadow-xs shrink-0 select-none border',
+                    currentView === 'profile'
+                      ? 'bg-[#101010] border-[#101010] ring-2 ring-[#101010] ring-offset-2 ring-offset-[#F8F5EE]'
+                      : 'bg-[#101010] hover:bg-[#252525] border-[#2A2A2A]'
+                  )}
+                  aria-label={`User account menu for ${displayName}`}
+                  aria-expanded={isAccountMenuOpen}
+                  title={`${displayName} — Account & Profile`}
+                >
+                  <span className="leading-none">{initial}</span>
+                </button>
 
-            {/* Logout icon */}
-            {onSignOut && currentView !== 'welcome' && (
-              <button
-                type="button"
-                onClick={onSignOut}
-                className="p-2 sm:p-2.5 rounded-full bg-[#F8F8F6] hover:bg-[#F2ECE0] text-[#777777] hover:text-[#101010] border border-[#E5E0D8] transition-colors cursor-pointer shadow-2xs shrink-0"
-                title="Sign out of ProFile"
-                aria-label="Sign out"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
+                {/* Compact Popover Account Menu */}
+                {isAccountMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-[#E5E0D8] rounded-2xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="px-3.5 py-1.5 border-b border-[#F0ECE3] mb-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#777777]">Signed In As</p>
+                      <p className="text-xs font-semibold text-[#101010] truncate">{userName || displayName}</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAccountMenuOpen(false);
+                        handleNavClick('profile');
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-[#101010] hover:bg-[#FAF9F5] transition-colors text-left cursor-pointer"
+                    >
+                      <User className="w-3.5 h-3.5 text-[#777777]" />
+                      <span>My Profile</span>
+                    </button>
+
+                    {onSignOut && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAccountMenuOpen(false);
+                          onSignOut();
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors text-left cursor-pointer border-t border-[#F0ECE3] mt-1 pt-2"
+                      >
+                        <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                        <span>Sign Out</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Mobile Menu Toggle Button */}
@@ -144,7 +195,7 @@ export function Navbar({
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="md:hidden p-2.5 rounded-full bg-[#F8F8F6] border border-[#E5E0D8] text-[#101010] hover:bg-white transition-colors cursor-pointer shadow-2xs"
+                className="lg:hidden p-2 rounded-full bg-[#F8F8F6] border border-[#E5E0D8] text-[#101010] hover:bg-white transition-colors cursor-pointer shadow-2xs"
                 aria-label="Toggle navigation menu"
               >
                 {isMobileMenuOpen ? (
@@ -159,9 +210,14 @@ export function Navbar({
 
         {/* Mobile Dropdown Menu Card */}
         {showAllNav && isMobileMenuOpen && (
-          <div className="md:hidden mt-2 p-3 bg-[#F8F8F6]/98 backdrop-blur-xl border border-[#E5E0D8] rounded-3xl shadow-xl space-y-1 animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="lg:hidden mt-2 p-3 bg-[#F8F8F6]/98 backdrop-blur-xl border border-[#E5E0D8] rounded-3xl shadow-xl space-y-1 animate-in fade-in slide-in-from-top-2 duration-150">
             {navLinks.map((item) => {
-              const isActive = currentView === item.view;
+              const isActive =
+                item.view === 'resume-builder'
+                  ? currentView === 'resume-builder' ||
+                    currentView === 'resume-setup' ||
+                    currentView === 'resume-recommendations'
+                  : currentView === item.view;
               const Icon = item.icon;
               return (
                 <button
@@ -187,7 +243,7 @@ export function Navbar({
                   setIsMobileMenuOpen(false);
                   onSignOut();
                 }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-all duration-150 cursor-pointer text-left"
+                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-all duration-150 cursor-pointer text-left border-t border-[#E8E2D7] pt-2"
               >
                 <LogOut className="w-4 h-4 shrink-0" />
                 <span>Sign Out</span>

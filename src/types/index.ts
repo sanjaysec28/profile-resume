@@ -7,3 +7,5 @@ export * from './navigation.ts';
 export * from './profile.ts';
 export * from './resume.ts';
 export * from './ats.ts';
+export * from './resumeSetup.ts';
+export * from './recommendations.ts';

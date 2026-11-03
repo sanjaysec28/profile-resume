@@ -2,15 +2,26 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * ProFile — High-Reliability A4 PDF Generator
+ * ProFile — High-Reliability A4 PDF Generator & Deterministic Pagination Engine
  * 
- * Fixes "Attempting to parse an unsupported color function 'oklab'" by:
- * 1. Pre-sanitizing computed styles and inline styles of all elements before export
- * 2. Converting CSS Color Module 4 functions (oklab, oklch, color-mix, lab, lch)
- *    to standard sRGB HEX / RGBA values using Canvas2D and mathematical converters
- * 3. Sanitizing cloned stylesheets and rules in the html2canvas sandbox
- * 4. Preserving standard A4 portrait sizing, multi-page pagination, clickable links,
- *    and uploaded profile photos
+ * Key Architecture Highlights (Phase C):
+ * 1. Deterministic Forward-Pass Pagination: Replaces the cascading margin-push approach
+ *    with a single-pass spacer algorithm based on stable initial layout measurements.
+ * 2. Strict A4 Geometry: Standard 210mm x 297mm (794px x 1123px at 96 DPI) with 2x
+ *    high-density retina rasterization.
+ * 3. DOM Isolation: Operates on a dedicated off-screen full-scale clone (1x zoom),
+ *    independent of any preview zoom or responsive viewport constraints.
+ * 4. Layout-Based Content Boundary Detection: Measures actual text and media node bottoms,
+ *    eliminating false-positive blank pages caused by off-white or ivory backgrounds.
+ * 5. Widow/Orphan Header Prevention: Guarantees section headings stay attached to their
+ *    first entry, moving both cleanly to the next page when space is insufficient.
+ * 6. Two-Column Compatibility: Independent column pagination preserving continuous
+ *    sidebar background geometry for the Contemporary Sidebar template.
+ * 7. Asset Resilience: Waits for custom fonts and images (e.g. Cloudinary) to resolve,
+ *    gracefully handling broken URLs without failing the export pipeline.
+ * 8. Searchable Text & Active Links: PDF Standard Text Rendering Mode 3 (invisible text)
+ *    and exact coordinate-mapped hyperlink annotations.
+ * 9. CSS Color 4 Sanitization: Full W3C sRGB conversion of modern oklab/oklch/color-mix.
  */
 
 import { jsPDF } from 'jspdf';
@@ -25,6 +36,7 @@ export interface PdfExportOptions {
   sourceElement?: HTMLElement;
   fullName?: string;
   mode?: 'searchable' | 'raster';
+  autoDownload?: boolean;
   onProgress?: (
     step: 'preparing' | 'rendering' | 'processing' | 'saving' | 'complete' | 'error',
     message: string
@@ -35,7 +47,28 @@ export interface PdfExportResult {
   success: boolean;
   filename: string;
   error?: string;
+  totalPages?: number;
+  pdfBase64?: string;
 }
+
+export interface ExtractedTextLine {
+  text: string;
+  leftPx: number;
+  topPx: number;
+  rightPx: number;
+  bottomPx: number;
+  fontSizePt: number;
+  fontFamily: string;
+  isBold: boolean;
+  isItalic: boolean;
+}
+
+// Canonical A4 Specifications at 96 DPI
+export const A4_WIDTH_PX = 794;
+export const A4_PAGE_HEIGHT_PX = 1123;
+export const A4_WIDTH_MM = 210;
+export const A4_HEIGHT_MM = 297;
+export const PX_TO_MM = A4_WIDTH_MM / A4_WIDTH_PX; // ~0.2644836
 
 /**
  * Generate a clean, meaningful filename: ProFile_[FirstName]_Resume.pdf
@@ -52,15 +85,185 @@ export function generatePdfFilename(fullName?: string): string {
   return `ProFile_${firstName || 'Student'}_Resume.pdf`;
 }
 
+interface PaginationMetrics {
+  pageHeightPx: number;
+  topMarginPx: number;
+  bottomMarginPx: number;
+  usablePageHeight: number;
+}
+
 /**
- * Export the resume element directly to an A4 PDF with guaranteed color compatibility
- * and pixel-accurate layout identical to the live preview.
+ * Accurately measures the furthest vertical extent of real content (text nodes and media),
+ * ignoring background colors, borders, or container heights to eliminate trailing blank pages.
+ */
+function getActualContentBottom(container: HTMLElement, referenceTop: number): number {
+  const contentElements = container.querySelectorAll<HTMLElement>(
+    'p, span, h1, h2, h3, h4, h5, h6, li, a, img, svg, canvas, .resume-entry, .resume-section'
+  );
+  let maxBottom = 0;
+  contentElements.forEach((el) => {
+    const hasText = Boolean(el.textContent && el.textContent.trim().length > 0);
+    const isMedia = el.tagName === 'IMG' || el.tagName === 'SVG' || el.tagName === 'CANVAS';
+    if (hasText || isMedia) {
+      const rect = el.getBoundingClientRect();
+      const b = rect.bottom - referenceTop;
+      if (b > maxBottom) {
+        maxBottom = b;
+      }
+    }
+  });
+  return maxBottom;
+}
+
+/**
+ * Deterministically paginates a single container column in forward order.
+ * Inserts precise page-break spacer blocks without mutating existing margins or coordinates.
+ */
+function paginateColumn(
+  columnEl: HTMLElement,
+  containerTop: number,
+  metrics: PaginationMetrics,
+  maxPages: number = 6
+): void {
+  const { pageHeightPx, topMarginPx, bottomMarginPx, usablePageHeight } = metrics;
+
+  // Collect candidate break elements in strict DOM reading order
+  const rawBreakItems = Array.from(
+    columnEl.querySelectorAll<HTMLElement>(
+      '.resume-entry, .resume-section-header, .resume-section.break-inside-avoid'
+    )
+  );
+
+  // Filter to top-level atomic units so we don't process nested children twice
+  const atomicUnits = rawBreakItems.filter((el) => {
+    let parent = el.parentElement;
+    while (parent && parent !== columnEl) {
+      if (rawBreakItems.includes(parent)) {
+        return false;
+      }
+      parent = parent.parentElement;
+    }
+    return true;
+  });
+
+  if (atomicUnits.length === 0) return;
+
+  let currentPage = 1;
+
+  for (let i = 0; i < atomicUnits.length; i++) {
+    if (currentPage >= maxPages) break;
+
+    const unit = atomicUnits[i];
+    const unitRect = unit.getBoundingClientRect();
+    const unitTop = unitRect.top - containerTop;
+    const unitBottom = unitRect.bottom - containerTop;
+    const unitHeight = unitBottom - unitTop;
+
+    // Advance currentPage tracker if this unit already naturally lands on a subsequent page
+    const currentPageBoundary = currentPage * pageHeightPx;
+    if (unitTop >= currentPageBoundary) {
+      currentPage = Math.floor(unitTop / pageHeightPx) + 1;
+    }
+
+    const currentLimit = currentPage * pageHeightPx - bottomMarginPx;
+    const nextPageTop = currentPage * pageHeightPx + topMarginPx;
+
+    // Check if unit crosses the usable bottom threshold for the current page
+    if (unitBottom > currentLimit && unitTop < currentLimit) {
+      // If the unit is exceptionally tall (> usable page height), let it flow naturally
+      if (
+        unitHeight > usablePageHeight &&
+        unitTop <= (currentPage - 1) * pageHeightPx + topMarginPx + 40
+      ) {
+        continue;
+      }
+
+      // Check if this unit is an entry and would leave an orphan section header
+      let targetToMove: HTMLElement = unit;
+      const section = unit.closest<HTMLElement>('.resume-section');
+      const sectionHeader = section?.querySelector<HTMLElement>('.resume-section-header');
+
+      if (sectionHeader && sectionHeader !== unit && section?.contains(unit)) {
+        const headerRect = sectionHeader.getBoundingClientRect();
+        const headerTop = headerRect.top - containerTop;
+        const headerPage = Math.floor(headerTop / pageHeightPx) + 1;
+
+        // If the header is on the current page, check if moving this entry leaves the header stranded
+        if (headerPage === currentPage) {
+          const sectionEntries = Array.from(
+            section.querySelectorAll<HTMLElement>('.resume-entry')
+          );
+          const entryIndex = sectionEntries.indexOf(unit);
+
+          // If this is the first entry, or the header is close to the bottom limit, move header with entry!
+          if (entryIndex <= 0 || headerTop > currentLimit - 75) {
+            targetToMove = sectionHeader;
+          }
+        }
+      }
+
+      const targetRect = targetToMove.getBoundingClientRect();
+      const targetTop = targetRect.top - containerTop;
+      const spacerHeight = nextPageTop - targetTop;
+
+      if (spacerHeight > 2 && spacerHeight < pageHeightPx) {
+        const spacer = document.createElement('div');
+        spacer.className = 'pdf-page-break-spacer';
+        spacer.setAttribute('data-page-spacer', String(currentPage));
+        spacer.style.display = 'block';
+        spacer.style.width = '100%';
+        spacer.style.height = `${Math.round(spacerHeight)}px`;
+        spacer.style.margin = '0';
+        spacer.style.padding = '0';
+        spacer.style.border = 'none';
+        spacer.style.clear = 'both';
+        spacer.style.pointerEvents = 'none';
+
+        targetToMove.parentNode?.insertBefore(spacer, targetToMove);
+        currentPage++;
+      }
+    }
+  }
+}
+
+/**
+ * Applies deterministic pagination across single-column or two-column resume templates.
+ */
+function applyDeterministicPagination(
+  container: HTMLElement,
+  metrics: PaginationMetrics
+): void {
+  const containerRect = container.getBoundingClientRect();
+  const containerTop = containerRect.top;
+
+  // Check if Two-Column layout (Contemporary Sidebar)
+  const isTwoColumn = Boolean(container.querySelector('.grid-cols-12'));
+
+  if (isTwoColumn) {
+    const mainCol = container.querySelector<HTMLElement>('.col-span-8');
+    const sideCol = container.querySelector<HTMLElement>('.col-span-4');
+
+    if (mainCol) {
+      paginateColumn(mainCol, containerTop, metrics);
+    }
+    if (sideCol) {
+      paginateColumn(sideCol, containerTop, metrics);
+    }
+  } else {
+    paginateColumn(container, containerTop, metrics);
+  }
+}
+
+/**
+ * Export the resume element directly to an A4 PDF with guaranteed color compatibility,
+ * deterministic pagination, clickable links, and crisp typography.
  */
 export async function exportResumeToPdf({
-  elementId = 'resume-a4-document',
+  elementId = 'resume-final-preview-document',
   sourceElement,
   fullName,
   mode = 'searchable',
+  autoDownload = true,
   onProgress,
 }: PdfExportOptions): Promise<PdfExportResult> {
   const filename = generatePdfFilename(fullName);
@@ -74,11 +277,11 @@ export async function exportResumeToPdf({
       try {
         await document.fonts.ready;
       } catch {
-        // Fallback gracefully
+        // Fallback gracefully if document.fonts is not supported
       }
     }
 
-    // 2. Find target element in DOM with intelligent discovery
+    // 2. Locate target element in DOM with intelligent discovery
     let target: HTMLElement | null = sourceElement || null;
 
     if (!target && elementId) {
@@ -99,7 +302,7 @@ export async function exportResumeToPdf({
     }
 
     if (!target) {
-      throw new Error(`Resume document was not found or is currently hidden.`);
+      throw new Error('Resume document was not found or is currently hidden.');
     }
 
     // 3. Clone the element for off-screen preparation
@@ -112,17 +315,18 @@ export async function exportResumeToPdf({
     clone.style.margin = '0';
     clone.style.boxShadow = 'none';
     clone.style.borderRadius = '0';
-    clone.style.width = '794px'; // 210mm at 96 DPI
-    clone.style.minWidth = '794px';
-    clone.style.maxWidth = '794px';
-    clone.style.minHeight = '1123px'; // 297mm at 96 DPI
-    clone.style.position = 'fixed';
+    clone.style.width = `${A4_WIDTH_PX}px`;
+    clone.style.minWidth = `${A4_WIDTH_PX}px`;
+    clone.style.maxWidth = `${A4_WIDTH_PX}px`;
+    clone.style.minHeight = `${A4_PAGE_HEIGHT_PX}px`;
+    clone.style.position = 'absolute';
     clone.style.top = '0';
     clone.style.left = '-10000px'; // Off-screen to avoid visual disturbance
     clone.style.zIndex = '-9999';
     clone.style.backgroundColor = '#FFFFFF';
     clone.style.color = '#101010';
     clone.style.display = 'block';
+    clone.style.boxSizing = 'border-box';
 
     // 4. Pre-sanitize all elements in the clone using computed styles from original DOM
     const origElements = Array.from(target.querySelectorAll('*')) as HTMLElement[];
@@ -134,16 +338,20 @@ export async function exportResumeToPdf({
     });
     sanitizeElementColors(clone, target.ownerDocument?.defaultView || window);
 
-    // 5. Ensure all images are loaded and have crossOrigin set
+    // 5. Ensure all images are loaded, have CORS set, and handle broken URLs gracefully
     const images = Array.from(clone.querySelectorAll('img'));
     await Promise.all(
       images.map((img) => {
         img.setAttribute('crossOrigin', 'anonymous');
-        if (img.complete && img.naturalHeight !== 0) return Promise.resolve(true);
+        if (img.complete && img.naturalWidth !== 0) return Promise.resolve(true);
         return new Promise((resolve) => {
           img.onload = () => resolve(true);
-          img.onerror = () => resolve(true);
-          setTimeout(() => resolve(true), 1200);
+          img.onerror = () => {
+            // Replace broken image with transparent placeholder to avoid corrupting canvas
+            img.style.display = 'none';
+            resolve(true);
+          };
+          setTimeout(() => resolve(true), 1500);
         });
       })
     );
@@ -151,93 +359,85 @@ export async function exportResumeToPdf({
     document.body.appendChild(clone);
 
     // Wait briefly for layout reflow and font metric settlement
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 60)));
 
-    // 6. Non-Disruptive Margin-Based Page Break Splitting
-    const pageHeightPx = 1123;
-    const cloneTop = clone.getBoundingClientRect().top;
+    // 6. Detect template padding and configure pagination metrics
+    const computedStyle = window.getComputedStyle(clone);
+    const padTop = parseFloat(computedStyle.paddingTop) || 36;
+    const padBottom = parseFloat(computedStyle.paddingBottom) || 36;
 
-    const breakEntries = Array.from(
-      clone.querySelectorAll<HTMLElement>('.resume-entry, [data-section-entry]')
-    );
-    const breakHeaders = Array.from(
-      clone.querySelectorAll<HTMLElement>('.resume-section-header, .break-after-avoid')
-    );
+    const topMarginPx = padTop > 0 ? padTop : 36;
+    const bottomMarginPx = padBottom > 0 ? padBottom : 36;
+    const usablePageHeight = A4_PAGE_HEIGHT_PX - topMarginPx - bottomMarginPx;
 
-    // Up to 5 potential pages
-    for (let pageNum = 1; pageNum <= 5; pageNum++) {
-      const boundaryY = pageNum * pageHeightPx;
+    const metrics: PaginationMetrics = {
+      pageHeightPx: A4_PAGE_HEIGHT_PX,
+      topMarginPx,
+      bottomMarginPx,
+      usablePageHeight,
+    };
 
-      // Check orphan section headers within 50px of page boundary
-      const orphanHeader = breakHeaders.find((h) => {
-        const rect = h.getBoundingClientRect();
-        const topRel = rect.top - cloneTop;
-        return topRel > boundaryY - 50 && topRel < boundaryY;
-      });
+    // 7. Check if document naturally fits on 1 page before inserting any spacers
+    const initialCloneRect = clone.getBoundingClientRect();
+    const naturalContentBottom = getActualContentBottom(clone, initialCloneRect.top);
 
-      if (orphanHeader) {
-        const topRel = orphanHeader.getBoundingClientRect().top - cloneTop;
-        const push = boundaryY - topRel + 16;
-        orphanHeader.style.marginTop = `${push}px`;
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      }
-
-      // Check entries that start before the boundary and cross it
-      const straddlingEntry = breakEntries.find((el) => {
-        const rect = el.getBoundingClientRect();
-        const topRel = rect.top - cloneTop;
-        const bottomRel = rect.bottom - cloneTop;
-        return (
-          topRel < boundaryY - 10 &&
-          bottomRel > boundaryY &&
-          topRel > (pageNum - 1) * pageHeightPx + 80
-        );
-      });
-
-      if (straddlingEntry) {
-        const topRel = straddlingEntry.getBoundingClientRect().top - cloneTop;
-        const push = boundaryY - topRel + 16;
-        if (push > 0 && push < pageHeightPx - 60) {
-          straddlingEntry.style.marginTop = `${push}px`;
-          await new Promise((resolve) => setTimeout(resolve, 20));
-        }
-      }
+    if (naturalContentBottom > A4_PAGE_HEIGHT_PX - 12) {
+      // Multi-page document: apply deterministic forward-pass pagination
+      applyDeterministicPagination(clone, metrics);
+      await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 40)));
     }
 
-    // 7. Capture clickable link positions for PDF annotation layer
+    // 8. Calculate exact page count based on real content extent (immune to background color false-positives)
     const cloneRect = clone.getBoundingClientRect();
+    const finalContentBottom = getActualContentBottom(clone, cloneRect.top);
+    const effectiveHeight = Math.max(A4_PAGE_HEIGHT_PX, finalContentBottom);
+
+    let totalPages = Math.ceil((effectiveHeight - 12) / A4_PAGE_HEIGHT_PX);
+    totalPages = Math.max(1, Math.min(6, totalPages));
+
+    // Fix the clone height to exactly totalPages * A4_PAGE_HEIGHT_PX for clean canvas slicing
+    clone.style.height = `${totalPages * A4_PAGE_HEIGHT_PX}px`;
+    clone.style.minHeight = `${totalPages * A4_PAGE_HEIGHT_PX}px`;
+
+    // 9. Capture clickable link positions for PDF annotation layer
     const linkElements: { href: string; rect: DOMRect }[] = [];
     const anchorTags = Array.from(clone.querySelectorAll<HTMLAnchorElement>('a[href]'));
 
     anchorTags.forEach((a) => {
       const rawHref = a.getAttribute('href');
       if (rawHref && rawHref.trim() && rawHref !== '#') {
-        const rect = a.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
-          let href = rawHref.trim();
-          if (
-            !href.startsWith('http://') &&
-            !href.startsWith('https://') &&
-            !href.startsWith('mailto:') &&
-            !href.startsWith('tel:')
-          ) {
-            href = `https://${href}`;
-          }
-          linkElements.push({ href, rect });
+        const rects = Array.from(a.getClientRects());
+        const validRects = rects.length > 0 ? rects : [a.getBoundingClientRect()];
+
+        let href = rawHref.trim();
+        if (
+          !href.startsWith('http://') &&
+          !href.startsWith('https://') &&
+          !href.startsWith('mailto:') &&
+          !href.startsWith('tel:')
+        ) {
+          href = `https://${href}`;
         }
+
+        validRects.forEach((rect) => {
+          if (rect.width > 0 && rect.height > 0) {
+            linkElements.push({ href, rect });
+          }
+        });
       }
     });
 
     onProgress?.('rendering', 'Rendering high-resolution A4 pages...');
 
-    // 8. Execute html2canvas with sanitized styles in cloned document
+    // 10. Execute html2canvas with sanitized styles in cloned document
     const canvas = await html2canvas(clone, {
-      scale: 2, // 2x high-resolution rendering
+      scale: 2, // 2x high-resolution retina rendering
       useCORS: true,
       allowTaint: true,
       logging: false,
       backgroundColor: '#FFFFFF',
-      windowWidth: 794,
+      windowWidth: A4_WIDTH_PX,
+      width: A4_WIDTH_PX,
       scrollX: 0,
       scrollY: 0,
       x: 0,
@@ -248,6 +448,7 @@ export async function exportResumeToPdf({
           clonedTarget.style.top = '0';
           clonedTarget.style.position = 'static';
           clonedTarget.style.boxShadow = 'none';
+          clonedTarget.style.transform = 'none';
           clonedTarget.style.backgroundColor = '#FFFFFF';
         }
 
@@ -276,11 +477,7 @@ export async function exportResumeToPdf({
 
     onProgress?.('processing', 'Assembling pages & embedding links...');
 
-    // 9. Multi-page A4 PDF Assembly using Discrete Page Slices
-    const a4WidthMm = 210;
-    const a4HeightMm = 297;
-    const pxToMm = a4WidthMm / cloneRect.width;
-
+    // 11. Multi-page A4 PDF Assembly using Discrete Page Slices
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -288,43 +485,8 @@ export async function exportResumeToPdf({
       compress: true,
     });
 
-    // Height of one A4 page in canvas pixels
-    const canvasPageHeight = Math.round((canvas.width * a4HeightMm) / a4WidthMm);
-
-    // Detect actual content bottom to prevent accidental blank pages
-    let contentBottomY = canvas.height;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      try {
-        const scanHeight = Math.min(canvas.height, Math.round(canvasPageHeight * 0.45));
-        const startY = canvas.height - scanHeight;
-        const imgData = ctx.getImageData(0, startY, canvas.width, scanHeight);
-        const data = imgData.data;
-        let found = false;
-
-        // Scan backwards from bottom for non-background pixels
-        for (let y = scanHeight - 1; y >= 0; y -= 2) {
-          for (let x = 0; x < canvas.width; x += 12) {
-            const i = (y * canvas.width + x) * 4;
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-            const a = data[i + 3];
-            if (a > 20 && (r < 248 || g < 248 || b < 248)) {
-              contentBottomY = startY + y;
-              found = true;
-              break;
-            }
-          }
-          if (found) break;
-        }
-      } catch {
-        contentBottomY = canvas.height;
-      }
-    }
-
-    const effectiveHeight = Math.min(canvas.height, contentBottomY + 16);
-    const totalPages = Math.max(1, Math.ceil(effectiveHeight / canvasPageHeight));
+    // Height of one A4 page in canvas pixels (scale 2 => 1123 * 2 = 2246 px)
+    const canvasPageHeight = Math.round((canvas.width * A4_HEIGHT_MM) / A4_WIDTH_MM);
 
     for (let p = 0; p < totalPages; p++) {
       if (p > 0) {
@@ -360,42 +522,40 @@ export async function exportResumeToPdf({
       }
 
       const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.98);
-      pdf.addImage(pageImgData, 'JPEG', 0, 0, a4WidthMm, a4HeightMm, undefined, 'FAST');
+      pdf.addImage(pageImgData, 'JPEG', 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM, undefined, 'FAST');
     }
 
-    // 10. Embed clickable hyperlink annotations (email, LinkedIn, GitHub, demo, repo)
+    // 12. Embed clickable hyperlink annotations (email, LinkedIn, GitHub, demo, repo)
     linkElements.forEach(({ href, rect }) => {
-      const xInMm = (rect.left - cloneRect.left) * pxToMm;
-      const totalYInMm = (rect.top - cloneRect.top) * pxToMm;
-      const wInMm = rect.width * pxToMm;
-      const hInMm = rect.height * pxToMm;
+      const relX = rect.left - cloneRect.left;
+      const totalY = rect.top - cloneRect.top;
 
-      // Determine which page this link lands on
-      const targetPage = Math.floor(totalYInMm / a4HeightMm) + 1;
-      const yOnPageInMm = totalYInMm % a4HeightMm;
+      // Determine page index and on-page coordinates
+      const pageIndex = Math.floor(totalY / A4_PAGE_HEIGHT_PX);
+      const targetPage = pageIndex + 1;
+      const yOnPagePx = totalY - pageIndex * A4_PAGE_HEIGHT_PX;
 
-      if (targetPage <= totalPages) {
+      if (targetPage >= 1 && targetPage <= totalPages) {
+        const xMm = relX * PX_TO_MM;
+        const yMm = yOnPagePx * PX_TO_MM;
+        const wMm = Math.max(rect.width * PX_TO_MM, 4);
+        const hMm = Math.max(rect.height * PX_TO_MM, 3);
+
         try {
           pdf.setPage(targetPage);
-          pdf.link(
-            Math.max(0, xInMm),
-            Math.max(0, yOnPageInMm),
-            Math.max(wInMm, 4),
-            Math.max(hInMm, 3),
-            { url: href }
-          );
+          pdf.link(Math.max(0, xMm), Math.max(0, yMm), wMm, hMm, { url: href });
         } catch {
-          // Ignore annotation errors on marginal boundaries
+          // Ignore individual annotation errors on marginal boundaries
         }
       }
     });
 
-    // 11. Embed selectable and searchable text layer (PDF Standard Mode 3: invisible text)
+    // 13. Embed selectable and searchable text layer (PDF Standard Mode 3: invisible text)
     if (mode !== 'raster') {
       try {
         onProgress?.('processing', 'Embedding selectable & searchable text layer...');
         const textLines = extractTextLayerFromElement(clone, cloneRect);
-        applyTextLayerToPdf(pdf, textLines, cloneRect, pxToMm, a4HeightMm, totalPages);
+        applyTextLayerToPdf(pdf, textLines, cloneRect, PX_TO_MM, A4_HEIGHT_MM, totalPages);
       } catch (textLayerErr) {
         console.warn(
           '[ProFile PDF Export]: Text layer extraction failed, falling back to raster-only:',
@@ -404,16 +564,22 @@ export async function exportResumeToPdf({
       }
     }
 
-    onProgress?.('saving', 'Saving PDF file to downloads...');
+    // 14. Download directly if enabled
+    if (autoDownload !== false) {
+      onProgress?.('saving', 'Saving PDF file to downloads...');
+      pdf.save(filename);
+      onProgress?.('complete', `Downloaded: ${filename}`);
+    } else {
+      onProgress?.('complete', `Generated: ${filename}`);
+    }
 
-    // 12. Download directly
-    pdf.save(filename);
-
-    onProgress?.('complete', `Downloaded: ${filename}`);
+    const pdfBase64 = pdf.output('datauristring');
 
     return {
       success: true,
       filename,
+      totalPages,
+      pdfBase64,
     };
   } catch (err: unknown) {
     const errorMsg =
@@ -445,25 +611,13 @@ export async function exportResumeToPdfRasterFallback(
   });
 }
 
-export interface ExtractedTextLine {
-  text: string;
-  leftPx: number;
-  topPx: number;
-  rightPx: number;
-  bottomPx: number;
-  fontSizePt: number;
-  fontFamily: string;
-  isBold: boolean;
-  isItalic: boolean;
-}
-
 /**
  * Extracts visible text fragments from the rendered DOM clone in logical reading order
  * and groups words on the same line together into clean phrases.
  */
 export function extractTextLayerFromElement(
   container: HTMLElement,
-  containerRect: DOMRect
+  _containerRect: DOMRect
 ): ExtractedTextLine[] {
   const doc = container.ownerDocument || document;
   const win = doc.defaultView || window;
@@ -657,7 +811,7 @@ export function applyTextLayerToPdf(
   lines: ExtractedTextLine[],
   cloneRect: DOMRect,
   pxToMm: number,
-  a4HeightMm: number,
+  _a4HeightMm: number,
   totalPages: number
 ): void {
   for (const line of lines) {
@@ -675,12 +829,14 @@ export function applyTextLayerToPdf(
     if (!cleanText) continue;
 
     const relX = line.leftPx - cloneRect.left;
-    const relY = line.topPx - cloneRect.top;
-    const xMm = relX * pxToMm;
-    const totalYMm = relY * pxToMm;
+    const totalY = line.topPx - cloneRect.top;
 
-    const targetPage = Math.floor(totalYMm / a4HeightMm) + 1;
-    const yOnPageMm = totalYMm % a4HeightMm;
+    const pageIndex = Math.floor(totalY / A4_PAGE_HEIGHT_PX);
+    const targetPage = pageIndex + 1;
+    const yOnPagePx = totalY - pageIndex * A4_PAGE_HEIGHT_PX;
+
+    const xMm = relX * pxToMm;
+    const yMm = yOnPagePx * pxToMm;
 
     if (targetPage >= 1 && targetPage <= totalPages) {
       try {
@@ -689,9 +845,19 @@ export function applyTextLayerToPdf(
         // Map CSS font family to standard PDF font
         let pdfFont = 'helvetica';
         const fam = line.fontFamily.toLowerCase();
-        if (fam.includes('times') || fam.includes('georgia') || fam.includes('cambria') || fam.includes('serif')) {
+        if (
+          fam.includes('times') ||
+          fam.includes('georgia') ||
+          fam.includes('cambria') ||
+          fam.includes('serif')
+        ) {
           pdfFont = 'times';
-        } else if (fam.includes('mono') || fam.includes('courier') || fam.includes('code') || fam.includes('consolas')) {
+        } else if (
+          fam.includes('mono') ||
+          fam.includes('courier') ||
+          fam.includes('code') ||
+          fam.includes('consolas')
+        ) {
           pdfFont = 'courier';
         }
 
@@ -719,14 +885,14 @@ export function applyTextLayerToPdf(
           }
         }
 
-        pdf.text(cleanText, Math.max(0, xMm), Math.max(0, yOnPageMm), {
+        pdf.text(cleanText, Math.max(0, xMm), Math.max(0, yMm), {
           baseline: 'top',
           renderingMode: 'invisible',
           ...(charSpace !== undefined ? { charSpace } : {}),
         });
       } catch {
         try {
-          pdf.text(cleanText, Math.max(0, xMm), Math.max(0, yOnPageMm), {
+          pdf.text(cleanText, Math.max(0, xMm), Math.max(0, yMm), {
             baseline: 'top',
             renderingMode: 'invisible',
           });
@@ -737,4 +903,3 @@ export function applyTextLayerToPdf(
     }
   }
 }
-

@@ -8,13 +8,21 @@ import { ResumeData, ResumeProject } from '../../../../types/resume.ts';
 import { Input } from '../../../../components/ui/Input.tsx';
 import { Textarea } from '../../../../components/ui/Textarea.tsx';
 import { Plus, Trash2, FolderGit2, Globe, Github } from 'lucide-react';
+import { AiInlineTrigger } from '../assistant/AiInlineTrigger.tsx';
+import { ContentAssistantAction, ContentAssistantSection } from '../../../../types/assistant.ts';
 
 interface ProjectsStepProps {
   data: ResumeData;
   onChange: (updater: (prev: ResumeData) => ResumeData) => void;
+  onOpenAssistant?: (
+    section: ContentAssistantSection,
+    action?: ContentAssistantAction,
+    content?: string,
+    context?: { itemId?: string; itemTitle?: string; itemTechStack?: string[] }
+  ) => void;
 }
 
-export function ProjectsStep({ data, onChange }: ProjectsStepProps) {
+export function ProjectsStep({ data, onChange, onOpenAssistant }: ProjectsStepProps) {
   const projects = data.projects;
 
   const handleAddProject = () => {
@@ -120,7 +128,28 @@ export function ProjectsStep({ data, onChange }: ProjectsStepProps) {
             {/* Description */}
             <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <label className="text-xs font-medium text-[#101010]">Description</label>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium text-[#101010]">Description &amp; Highlights</label>
+                  {onOpenAssistant && (
+                    <AiInlineTrigger
+                      section="projects"
+                      compact
+                      label="AI Polish"
+                      onOpenAssistant={(sec, act) =>
+                        onOpenAssistant(
+                          sec,
+                          act,
+                          proj.bullets?.length ? proj.bullets.join('\n') : proj.description,
+                          {
+                            itemId: proj.id,
+                            itemTitle: proj.title,
+                            itemTechStack: proj.techStack,
+                          }
+                        )
+                      }
+                    />
+                  )}
+                </div>
                 <span className="text-[11px] text-[#A3A3A3]">
                   {proj.description.length}/300
                 </span>

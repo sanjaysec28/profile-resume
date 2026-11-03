@@ -9,13 +9,16 @@ import { Input } from '../../../../components/ui/Input.tsx';
 import { Textarea } from '../../../../components/ui/Textarea.tsx';
 import { Upload, Camera } from 'lucide-react';
 import { Avatar } from '../../../../components/ui/Avatar.tsx';
+import { AiInlineTrigger } from '../assistant/AiInlineTrigger.tsx';
+import { ContentAssistantAction, ContentAssistantSection } from '../../../../types/assistant.ts';
 
 interface PersonalInfoStepProps {
   data: ResumeData;
   onChange: (updater: (prev: ResumeData) => ResumeData) => void;
+  onOpenAssistant?: (section: ContentAssistantSection, action?: ContentAssistantAction, content?: string) => void;
 }
 
-export function PersonalInfoStep({ data, onChange }: PersonalInfoStepProps) {
+export function PersonalInfoStep({ data, onChange, onOpenAssistant }: PersonalInfoStepProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const info = data.personalInfo;
 
@@ -52,21 +55,59 @@ export function PersonalInfoStep({ data, onChange }: PersonalInfoStepProps) {
 
     const reader = new FileReader();
     reader.onload = () => {
-      updateField('photoUrl', reader.result as string);
+      onChange((prev) => ({
+        ...prev,
+        personalInfo: {
+          ...prev.personalInfo,
+          photoUrl: reader.result as string,
+          showPhoto: true, // Automatically enable when user uploads a photo
+        },
+        sectionVisibility: {
+          ...prev.sectionVisibility,
+          photo: true,
+        },
+      }));
     };
     reader.readAsDataURL(file);
   };
 
   const handleRemovePhoto = () => {
-    updateField('photoUrl', '');
+    onChange((prev) => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        photoUrl: '',
+        showPhoto: false,
+      },
+      sectionVisibility: {
+        ...prev.sectionVisibility,
+        photo: false,
+      },
+    }));
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
+  const handleTogglePhoto = (enabled: boolean) => {
+    onChange((prev) => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        showPhoto: enabled,
+      },
+      sectionVisibility: {
+        ...prev.sectionVisibility,
+        photo: enabled,
+      },
+    }));
+  };
+
+  const isPhotoEnabled = Boolean(info.photoUrl && info.showPhoto === true);
+
   return (
     <div className="space-y-6">
-      {/* Photo Upload Area matching reference */}
+      {/* Photo Upload Area */}
       <div className="pb-5 border-b border-[#E5E0D8]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -126,9 +167,45 @@ export function PersonalInfoStep({ data, onChange }: PersonalInfoStepProps) {
 
           <div className="text-left sm:text-right max-w-xs">
             <p className="text-[11px] text-[#777777] leading-relaxed">
-              <span className="font-semibold text-[#101010]">Photo compatibility:</span> Automatically rendered on creative, sidebar, and executive layouts; kept clean on ATS templates.
+              <span className="font-semibold text-[#101010]">Standard size:</span> Standardized to 72×72px (48px on Compact) with aspect ratio protection.
             </p>
           </div>
+        </div>
+
+        {/* User-controlled setting: Include Profile Photo in Resume */}
+        <div className="mt-4 pt-3.5 border-t border-[#F0ECE3] flex items-center justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-[#101010]">
+                Include Profile Photo in Resume
+              </span>
+              <span className="text-[10px] font-medium text-[#777777] bg-[#F5F2EB] px-2 py-0.5 rounded">
+                ATS Recommended: Off
+              </span>
+            </div>
+            <p className="text-[11px] text-[#777777] mt-0.5 leading-relaxed">
+              {info.photoUrl
+                ? 'Turn off to export a photo-free ATS-friendly resume without deleting your uploaded photo.'
+                : 'Upload a photo above to enable photo display on supported resume templates.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isPhotoEnabled}
+            disabled={!info.photoUrl}
+            onClick={() => handleTogglePhoto(!isPhotoEnabled)}
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${
+              isPhotoEnabled ? 'bg-[#101010]' : 'bg-[#D1C9BE]'
+            }`}
+            title={info.photoUrl ? 'Toggle profile photo on resume' : 'Upload a photo first to enable'}
+          >
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                isPhotoEnabled ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
 
         {photoError && (
@@ -211,9 +288,19 @@ export function PersonalInfoStep({ data, onChange }: PersonalInfoStepProps) {
       {/* Professional Summary */}
       <div className="space-y-1.5 text-left">
         <div className="flex justify-between items-center">
-          <label className="text-xs font-medium text-[#101010]">
-            Professional Summary
-          </label>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-[#101010]">
+              Professional Summary
+            </label>
+            {onOpenAssistant && (
+              <AiInlineTrigger
+                section="summary"
+                compact
+                label="AI Assist"
+                onOpenAssistant={(sec, act) => onOpenAssistant(sec, act, info.summary)}
+              />
+            )}
+          </div>
           <span className="text-[11px] text-[#A3A3A3]">
             {info.summary.length}/500
           </span>

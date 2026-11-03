@@ -8,3 +8,8 @@ export * from './components/ResumeBuilder.tsx';
 export * from './components/ResumeSidebar.tsx';
 export * from './components/ResumeLivePreview.tsx';
 export * from './components/FinalPreviewModal.tsx';
+export * from './components/setup/ResumeSetupWizard.tsx';
+export * from './components/recommendations/RecommendationsDashboard.tsx';
+export * from './components/assistant/AiContentAssistantModal.tsx';
+export * from './components/assistant/AiInlineTrigger.tsx';
+export * from './components/assistant/SectionManagerModal.tsx';
