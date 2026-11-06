@@ -323,6 +323,17 @@ export function ResumeReviewModal({
           </div>
         )}
 
+        {/* COMPLEMENTARY TOOL GUIDANCE BANNER */}
+        <div className="shrink-0 bg-[#F4F1EA] border-b border-[#E5E0D8] px-5 sm:px-7 py-2.5 flex items-center justify-between gap-3 text-[11px] text-[#555555]">
+          <div className="flex items-center gap-2">
+            <Info className="w-4 h-4 text-[#8C6D1F] shrink-0" />
+            <span>
+              <strong className="text-[#101010]">Complementary Evaluation: </strong>
+              The <strong>ATS Checker</strong> verifies machine-readability, formatting syntax, and keyword presence. This <strong>Resume Quality Review</strong> assesses human recruiter impression, storytelling, and entry-level impact.
+            </span>
+          </div>
+        </div>
+
         {/* NAVIGATION TABS */}
         <div className="shrink-0 px-5 sm:px-7 bg-white border-b border-[#E5E0D8] flex items-center justify-between overflow-x-auto scrollbar-none">
           <div className="flex gap-1 text-xs font-semibold">

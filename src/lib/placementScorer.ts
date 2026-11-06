@@ -13,30 +13,13 @@ import {
   EligibilityAssessment,
   EligibilityCriterion,
   EligibilityStatus,
+  PlacementStudentContext,
 } from '../types/placementIntelligence.ts';
 import { ResumeData } from '../types/resume.ts';
 import { StudentProfile } from '../types/profile.ts';
 import { ResumeSetupData } from '../types/resumeSetup.ts';
 
-interface StudentPlacementContext {
-  targetRole: string;
-  degree: string;
-  major: string;
-  academicYear: string;
-  graduationYear: string;
-  cgpaOrScore?: string;
-  technicalSkills: string[];
-  softSkills: string[];
-  projects: {
-    title: string;
-    techStack: string[];
-    description: string;
-    bullets?: string[];
-  }[];
-  experienceCount: number;
-  certifications?: string[];
-  coursework?: string[];
-}
+export type StudentPlacementContext = PlacementStudentContext;
 
 /**
  * Extracts normalized placement context from resume, profile, and setup data.
@@ -56,42 +39,82 @@ export function buildPlacementContext(
 
   const degree =
     setupData?.profileContext?.degree ||
+    (profile as any)?.degree ||
     resumeData?.education?.[0]?.degree ||
-    'B.Tech';
+    '';
 
   const major =
     setupData?.profileContext?.major ||
     profile?.major ||
     resumeData?.education?.[0]?.fieldOfStudy ||
-    'Computer Science';
+    (resumeData?.education?.[0] as any)?.field ||
+    '';
 
   const academicYear =
     setupData?.profileContext?.academicYear ||
-    '3rd Year';
+    (profile as any)?.academicYear ||
+    '';
 
   const graduationYear =
     setupData?.profileContext?.graduationYear ||
-    profile?.graduationYear ||
+    (profile as any)?.graduationYear ||
     resumeData?.education?.[0]?.endDate ||
-    '2026';
+    (resumeData?.education?.[0] as any)?.endYear ||
+    '';
 
   const cgpaOrScore =
     profile?.gpa ||
+    ((profile as any)?.cgpa !== undefined ? String((profile as any).cgpa) : undefined) ||
     resumeData?.education?.[0]?.scoreOrGpa ||
+    (resumeData?.education?.[0] as any)?.gpa ||
     undefined;
 
-  const technicalSkills = resumeData?.skills?.technical || [];
-  const softSkills = resumeData?.skills?.soft || [];
+  // Extract skills supporting both object format and array format
+  let technicalSkills: string[] = [];
+  let softSkills: string[] = [];
 
-  const projects = (resumeData?.projects || []).map((p) => ({
-    title: p.title,
-    techStack: p.techStack || [],
+  if (Array.isArray(resumeData?.skills)) {
+    (resumeData.skills as any[]).forEach((sk) => {
+      const name = typeof sk === 'string' ? sk : sk?.name || '';
+      if (!name) return;
+      const cat = typeof sk === 'object' ? String(sk?.category || '').toLowerCase() : '';
+      if (cat.includes('soft') || cat.includes('interpersonal')) {
+        softSkills.push(name);
+      } else {
+        technicalSkills.push(name);
+      }
+    });
+  } else if (resumeData?.skills) {
+    if (Array.isArray(resumeData.skills.technical)) {
+      technicalSkills.push(...resumeData.skills.technical);
+    }
+    if (Array.isArray(resumeData.skills.tools)) {
+      technicalSkills.push(...resumeData.skills.tools);
+    }
+    if (Array.isArray(resumeData.skills.soft)) {
+      softSkills.push(...resumeData.skills.soft);
+    }
+  }
+
+  // Profile-level skills fallback if present
+  if (Array.isArray((profile as any)?.skills)) {
+    (profile as any).skills.forEach((sk: any) => {
+      const name = typeof sk === 'string' ? sk : sk?.name || '';
+      if (name && !technicalSkills.includes(name)) {
+        technicalSkills.push(name);
+      }
+    });
+  }
+
+  const projects = (resumeData?.projects || []).map((p: any) => ({
+    title: p.title || '',
+    techStack: p.techStack || p.technologies || [],
     description: p.description || '',
-    bullets: p.bullets || [],
+    bullets: p.bullets || p.bulletPoints || [],
   }));
 
-  const experienceCount = (resumeData?.experience || []).length;
-  const certifications = (resumeData?.certifications || []).map((c) => c.name);
+  const experienceCount = (resumeData?.experience || (resumeData as any)?.experiences || []).length;
+  const certifications = (resumeData?.certifications || []).map((c: any) => typeof c === 'string' ? c : c?.name || '');
   const coursework = resumeData?.coursework || [];
 
   return {
@@ -270,65 +293,104 @@ export function evaluateJobEligibility(
     /degree|bachelor|master|associate|b\.tech|bs|computer science/i.test(q)
   );
   if (degreeRequirement) {
-    const isMajorRelevant =
-      /computer science|information technology|software|engineering|data science|related/i.test(
-        degreeRequirement
-      );
-    const studentMajorMatch = /computer|software|information|engineering|science/i.test(context.major);
-
-    if (isMajorRelevant && studentMajorMatch) {
+    if (!context.degree && !context.major) {
       criteria.push({
         field: 'Degree & Discipline',
         requirement: degreeRequirement,
-        studentValue: `${context.degree} in ${context.major}`,
-        status: 'met',
-        notes: 'Your technical degree aligns with the program qualifications.',
+        studentValue: 'Not specified in profile',
+        status: 'unknown',
+        notes: 'Add your degree and major in your profile to verify program alignment.',
       });
+      unknownCount++;
     } else {
-      criteria.push({
-        field: 'Degree & Discipline',
-        requirement: degreeRequirement,
-        studentValue: `${context.degree} in ${context.major}`,
-        status: 'met',
-        notes: 'Degree recorded. Verified as relevant technical discipline.',
-      });
+      const isMajorRelevant =
+        /computer science|information technology|software|engineering|data science|related/i.test(
+          degreeRequirement
+        );
+      const studentMajorMatch =
+        !context.major ||
+        /computer|software|information|engineering|science|data|math|physics/i.test(context.major);
+
+      if (isMajorRelevant && studentMajorMatch) {
+        criteria.push({
+          field: 'Degree & Discipline',
+          requirement: degreeRequirement,
+          studentValue: [context.degree, context.major].filter(Boolean).join(' in ') || 'Technical Degree',
+          status: 'met',
+          notes: 'Your technical degree aligns with the program qualifications.',
+        });
+      } else {
+        criteria.push({
+          field: 'Degree & Discipline',
+          requirement: degreeRequirement,
+          studentValue: [context.degree, context.major].filter(Boolean).join(' in ') || 'Degree recorded',
+          status: 'unknown',
+          notes: 'Degree discipline requires employer verification for program qualifications.',
+        });
+        unknownCount++;
+      }
     }
   }
 
   // 2. Graduation Year Check (for internships and freshers)
-  const gradReq = job.requiredQualifications.find((q) => /graduation|graduating|graduate between/i.test(q));
+  const gradReq = job.requiredQualifications.find((q) => /graduation|graduating|graduate between|batch/i.test(q));
   if (gradReq) {
-    const reqYears = gradReq.match(/\b(202[4-9])\b/g);
+    const reqYears = gradReq.match(/\b(20\d{2})\b/g);
     if (reqYears && reqYears.length > 0) {
-      const studentYearNum = parseInt(context.graduationYear.match(/\b(202[4-9])\b/)?.[0] || '2026', 10);
-      const isEligibleGrad = reqYears.some((y) => Math.abs(parseInt(y, 10) - studentYearNum) <= 1);
-
-      if (isEligibleGrad) {
+      const studentYearMatch = context.graduationYear ? context.graduationYear.match(/\b(20\d{2})\b/) : null;
+      if (!studentYearMatch) {
         criteria.push({
           field: 'Graduation Year Window',
           requirement: gradReq,
-          studentValue: `Graduating ${context.graduationYear}`,
-          status: 'met',
-          notes: 'Your anticipated graduation date aligns with the employer’s cohort timeline.',
+          studentValue: 'Not specified in profile',
+          status: 'unknown',
+          notes: `Program specifies cohort graduation window (${reqYears.join(' - ')}). Add expected graduation year to verify.`,
         });
+        unknownCount++;
       } else {
-        criteria.push({
-          field: 'Graduation Year Window',
-          requirement: gradReq,
-          studentValue: `Graduating ${context.graduationYear}`,
-          status: 'unmet',
-          notes: `Program specifies graduation window (${reqYears.join(' - ')}).`,
-        });
-        unmetCount++;
+        const studentYearNum = parseInt(studentYearMatch[0], 10);
+        const isEligibleGrad = reqYears.some((y) => parseInt(y, 10) === studentYearNum);
+
+        if (isEligibleGrad) {
+          criteria.push({
+            field: 'Graduation Year Window',
+            requirement: gradReq,
+            studentValue: `Graduating ${context.graduationYear}`,
+            status: 'met',
+            notes: 'Your anticipated graduation date aligns with the employer’s cohort timeline.',
+          });
+        } else {
+          criteria.push({
+            field: 'Graduation Year Window',
+            requirement: gradReq,
+            studentValue: `Graduating ${context.graduationYear}`,
+            status: 'unmet',
+            notes: `Program specifies graduation window (${reqYears.join(' - ')}).`,
+          });
+          unmetCount++;
+        }
       }
     } else {
-      criteria.push({
-        field: 'Graduation Standing',
-        requirement: gradReq,
-        studentValue: `${context.academicYear} (Class of ${context.graduationYear})`,
-        status: 'met',
-        notes: 'Current academic standing recorded.',
-      });
+      if (!context.academicYear && !context.graduationYear) {
+        criteria.push({
+          field: 'Graduation Standing',
+          requirement: gradReq,
+          studentValue: 'Not specified in profile',
+          status: 'unknown',
+          notes: 'Academic standing or cohort year not yet recorded on profile.',
+        });
+        unknownCount++;
+      } else {
+        criteria.push({
+          field: 'Graduation Standing',
+          requirement: gradReq,
+          studentValue: [context.academicYear, context.graduationYear ? `Class of ${context.graduationYear}` : '']
+            .filter(Boolean)
+            .join(' - '),
+          status: 'met',
+          notes: 'Current academic standing recorded.',
+        });
+      }
     }
   }
 
@@ -354,14 +416,35 @@ export function evaluateJobEligibility(
   // 4. CGPA / Minimum Grade Check (if present in job posting)
   const gpaReq = job.requiredQualifications.find((q) => /cgpa|gpa|percentage/i.test(q));
   if (gpaReq) {
-    if (context.cgpaOrScore) {
-      criteria.push({
-        field: 'Academic Score / CGPA',
-        requirement: gpaReq,
-        studentValue: context.cgpaOrScore,
-        status: 'met',
-        notes: 'Academic standing recorded on profile.',
-      });
+    if (context.cgpaOrScore && context.cgpaOrScore.trim()) {
+      const studentNum = parseFloat(context.cgpaOrScore.replace(/[^0-9.]/g, ''));
+      const reqNumMatch = gpaReq.match(/\b([2-9](\.[0-9]+)?|[6-9][0-9]%)\b/);
+      let isMet = true;
+      if (!isNaN(studentNum) && reqNumMatch) {
+        const reqNum = parseFloat(reqNumMatch[0].replace('%', ''));
+        if (studentNum < reqNum && reqNum <= 10 && studentNum <= 10) {
+          isMet = false;
+        }
+      }
+
+      if (isMet) {
+        criteria.push({
+          field: 'Academic Score / CGPA',
+          requirement: gpaReq,
+          studentValue: context.cgpaOrScore,
+          status: 'met',
+          notes: 'Academic standing recorded on profile meets employer threshold.',
+        });
+      } else {
+        criteria.push({
+          field: 'Academic Score / CGPA',
+          requirement: gpaReq,
+          studentValue: context.cgpaOrScore,
+          status: 'unmet',
+          notes: `Minimum academic threshold specified: ${gpaReq}.`,
+        });
+        unmetCount++;
+      }
     } else {
       criteria.push({
         field: 'Academic Score / CGPA',
@@ -378,12 +461,17 @@ export function evaluateJobEligibility(
   let overallStatus: EligibilityStatus = 'appears-eligible';
   let summary = 'You appear to meet all explicit eligibility requirements for this opportunity.';
 
+  const metCount = criteria.filter((c) => c.status === 'met').length;
+
   if (unmetCount > 0) {
     overallStatus = 'likely-not-eligible';
-    summary = 'One or more explicit program conditions (e.g. graduation year window) may not align with your current profile.';
+    summary = 'One or more explicit program conditions (e.g. graduation year or CGPA) may not align with your current profile.';
+  } else if (unknownCount > 0 && metCount <= 1 && (!context.degree || !context.graduationYear)) {
+    overallStatus = 'eligibility-unknown';
+    summary = 'Academic qualifications cannot be determined until your graduation year and degree are completed in your profile.';
   } else if (unknownCount > 0) {
     overallStatus = 'potentially-eligible';
-    summary = 'You meet core requirements, but additional information (such as transcript GPA) requires verification.';
+    summary = 'You meet core qualifications, but additional information (such as transcript CGPA) requires verification.';
   }
 
   return {

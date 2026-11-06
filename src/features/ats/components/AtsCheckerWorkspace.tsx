@@ -5,16 +5,25 @@
  * ProFile — Real ATS Resume Scanner & Score Analysis Engine Workspace
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ResumeData } from '../../../types/resume.ts';
 import {
   FullAtsReport,
   ExtractedResumeText,
   AtsCompatibilityWarning,
 } from '../types.ts';
+import {
+  saveAtsReport,
+  getSavedAtsReport,
+  PersistedAtsRecord,
+  AtsScoreComparison,
+} from '../../../lib/atsPersistenceService.ts';
 import { extractResumeFromFile, extractResumeFromProFileData } from '../utils/textExtractor.ts';
 import { parseJobDescription } from '../utils/jobDescriptionParser.ts';
 import { evaluateResume } from '../utils/atsScoringEngine.ts';
+import { computeResumeContentFingerprint } from '../../../lib/resumeReviewScorer.ts';
+import { ContentAssistantSection } from '../../../types/assistant.ts';
+import { ResumeSetupData } from '../../../types/resumeSetup.ts';
 import { Button } from '../../../components/ui/Button.tsx';
 import { Input } from '../../../components/ui/Input.tsx';
 import { Textarea } from '../../../components/ui/Textarea.tsx';
@@ -41,16 +50,50 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  TrendingUp,
+  History,
+  Sparkles,
+  CheckCheck,
 } from 'lucide-react';
+
+export interface AtsRecommendationItem {
+  id: string;
+  issue: string;
+  whyItMatters: string;
+  section: ContentAssistantSection;
+  suggestedImprovement: string;
+  evidenceOrMissing: string;
+  priority: 'high' | 'medium' | 'low';
+  category: string;
+  status: 'suggested' | 'applied' | 'dismissed';
+  targetKeywords?: string[];
+}
+
+export interface AtsHandoffPayload {
+  missingKeywords: string[];
+  actionItems: { id: string; title: string; description: string; priority: string }[];
+  recommendations: AtsRecommendationItem[];
+  targetRole?: string;
+  resumeContentHash?: string;
+  analyzedAt?: string;
+}
 
 interface AtsCheckerWorkspaceProps {
   resumeData: ResumeData;
+  resumeSetup?: ResumeSetupData | null;
+  userId?: string;
+  resumeId?: string;
   onNavigateToBuilder: () => void;
+  onApplyAtsImprovements?: (payload: AtsHandoffPayload) => void;
 }
 
 export function AtsCheckerWorkspace({
   resumeData,
+  resumeSetup,
+  userId,
+  resumeId,
   onNavigateToBuilder,
+  onApplyAtsImprovements,
 }: AtsCheckerWorkspaceProps) {
   // Input mode: active ProFile draft vs. uploaded file
   const [inputMode, setInputMode] = useState<'profile-draft' | 'file-upload'>('profile-draft');
@@ -67,11 +110,58 @@ export function AtsCheckerWorkspace({
   const [scanProgressMessage, setScanProgressMessage] = useState<string | null>(null);
   const [parsingError, setParsingError] = useState<string | null>(null);
 
-  // Output report
+  // Output report & persistence state
   const [atsReport, setAtsReport] = useState<FullAtsReport | null>(null);
   const [checkedActionItems, setCheckedActionItems] = useState<Record<string, boolean>>({});
+  const [isReportOutdated, setIsReportOutdated] = useState(false);
+  const [isLoadingSavedReport, setIsLoadingSavedReport] = useState(false);
+  const [savedReportTimestamp, setSavedReportTimestamp] = useState<string | null>(null);
+  const [comparison, setComparison] = useState<AtsScoreComparison | null>(null);
+  const [savedRecord, setSavedRecord] = useState<PersistedAtsRecord | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Synchronize target role and job description from active resumeSetup if available
+  useEffect(() => {
+    if (!jobDescription && resumeSetup?.jobDescription?.text) {
+      setJobDescription(resumeSetup.jobDescription.text);
+    }
+    if (!targetJobTitle) {
+      setTargetJobTitle(resumeSetup?.targetRole?.title || resumeData.personalInfo?.professionalTitle || '');
+    }
+    if (!targetCompany && resumeSetup?.jobDescription?.companyName) {
+      setTargetCompany(resumeSetup.jobDescription.companyName);
+    }
+  }, [resumeSetup, resumeData.personalInfo?.professionalTitle]);
+
+  // Automatically restore previously saved ATS report for this user and resume
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingSavedReport(true);
+
+    getSavedAtsReport(userId, resumeId || resumeData.id, resumeData)
+      .then((saved) => {
+        if (!isMounted || !saved) return;
+        setSavedRecord(saved);
+        setAtsReport(saved.report);
+        setComparison(saved.comparison || null);
+        if (saved.jobDescriptionText) setJobDescription(saved.jobDescriptionText);
+        if (saved.targetJobTitle) setTargetJobTitle(saved.targetJobTitle);
+        if (saved.targetCompany) setTargetCompany(saved.targetCompany);
+        setIsReportOutdated(Boolean(saved.isOutdated));
+        setSavedReportTimestamp(saved.analyzedAt || saved.updatedAt);
+      })
+      .catch((err) => {
+        console.warn('[AtsCheckerWorkspace] Failed to restore saved report:', err);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingSavedReport(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userId, resumeId, resumeData.id]);
 
   // Handle file drop / select
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -128,12 +218,137 @@ export function AtsCheckerWorkspace({
 
       setAtsReport(report);
       setCheckedActionItems({});
+      setIsReportOutdated(false);
+      setSavedReportTimestamp(new Date().toISOString());
+
+      // Persist ATS report to Firestore and localStorage with comparison against previous scan
+      saveAtsReport(
+        userId,
+        resumeId || resumeData.id,
+        report,
+        resumeData,
+        {
+          jobDescription,
+          targetJobTitle,
+          targetCompany,
+        },
+        savedRecord
+      )
+        .then((rec) => {
+          setSavedRecord(rec);
+          setComparison(rec.comparison || null);
+        })
+        .catch((err) => {
+          console.warn('[AtsCheckerWorkspace] Failed to auto-persist ATS report:', err);
+        });
     } catch (err: any) {
       console.error('[ATS Analysis Error]:', err);
       setParsingError(err.message || 'An unexpected error occurred during resume parsing.');
     } finally {
       setIsScanning(false);
       setScanProgressMessage(null);
+    }
+  };
+
+  const handleApplyInEditor = () => {
+    if (!atsReport) {
+      onNavigateToBuilder();
+      return;
+    }
+
+    const missingKws: string[] = [];
+    if (atsReport.missingKeywords && atsReport.missingKeywords.length > 0) {
+      missingKws.push(...atsReport.missingKeywords.map((k) => k.term));
+    }
+    if (atsReport.requiredSkillsMatch?.missing && atsReport.requiredSkillsMatch.missing.length > 0) {
+      for (const m of atsReport.requiredSkillsMatch.missing) {
+        if (!missingKws.includes(m)) {
+          missingKws.push(m);
+        }
+      }
+    }
+
+    const items = (atsReport.actionChecklist || []).map((a) => ({
+      id: a.id,
+      title: a.title,
+      description: a.description,
+      priority: a.priority,
+    }));
+
+    // Construct structured recommendations matching Requirement 3
+    const recommendations: AtsRecommendationItem[] = [];
+
+    // 1. Missing Keyword Recommendations
+    (atsReport.missingKeywords || []).slice(0, 6).forEach((kw) => {
+      const section: ContentAssistantSection = (kw.category as string) === 'soft-skill' ? 'soft_skills' : 'technical_skills';
+      recommendations.push({
+        id: `rec-kw-${kw.term}`,
+        issue: `Missing Domain Keyword: "${kw.term}"`,
+        whyItMatters: kw.whyItMatters || 'Applicant tracking systems scan for standard role keywords to establish domain qualification.',
+        section,
+        suggestedImprovement: `Highlight "${kw.term}" under ${section === 'technical_skills' ? 'Technical Skills' : 'Professional Skills'} or mention it within relevant project bullet points if you have verified experience.`,
+        evidenceOrMissing: `The keyword "${kw.term}" is absent from your resume text.`,
+        priority: kw.importance || 'medium',
+        category: 'Keyword Coverage',
+        status: 'suggested',
+        targetKeywords: [kw.term],
+      });
+    });
+
+    // 2. Action Checklist Recommendations
+    (atsReport.actionChecklist || []).forEach((act) => {
+      let section: ContentAssistantSection = 'summary';
+      const lowTitle = act.title.toLowerCase();
+      const lowDesc = act.description.toLowerCase();
+      if (lowTitle.includes('project') || lowDesc.includes('project') || lowDesc.includes('metric')) {
+        section = 'projects';
+      } else if (lowTitle.includes('skill') || lowDesc.includes('skill') || lowDesc.includes('tool')) {
+        section = 'technical_skills';
+      } else if (lowTitle.includes('experience') || lowDesc.includes('internship')) {
+        section = 'experience';
+      } else if (lowTitle.includes('education') || lowDesc.includes('gpa')) {
+        section = 'education';
+      }
+
+      recommendations.push({
+        id: `rec-act-${act.id}`,
+        issue: act.title,
+        whyItMatters: act.impact ? `Impact: ${act.impact}. Engineering screeners prioritize quantified contributions and active verbs.` : 'Enhances recruiter scan readability and keyword parsing score.',
+        section,
+        suggestedImprovement: act.description,
+        evidenceOrMissing: `Identified during automated scan of ${section.replace('_', ' ')}.`,
+        priority: act.priority || 'medium',
+        category: act.category || 'Content Optimization',
+        status: 'suggested',
+      });
+    });
+
+    // 3. Compatibility Warnings Recommendations
+    (atsReport.compatibilityWarnings || []).forEach((w) => {
+      recommendations.push({
+        id: `rec-warn-${w.id}`,
+        issue: w.title,
+        whyItMatters: 'Formatting and header structure determine whether ATS software can extract credentials without parsing errors.',
+        section: 'summary',
+        suggestedImprovement: w.recommendation,
+        evidenceOrMissing: w.description,
+        priority: w.severity === 'error' ? 'high' : 'medium',
+        category: 'Machine Readability',
+        status: 'suggested',
+      });
+    });
+
+    if (onApplyAtsImprovements) {
+      onApplyAtsImprovements({
+        missingKeywords: missingKws,
+        actionItems: items,
+        recommendations,
+        targetRole: atsReport.jobTitle || targetJobTitle || '',
+        resumeContentHash: computeResumeContentFingerprint(resumeData),
+        analyzedAt: new Date().toISOString(),
+      });
+    } else {
+      onNavigateToBuilder();
     }
   };
 
@@ -394,6 +609,131 @@ export function AtsCheckerWorkspace({
        * ========================================================================= */}
       {atsReport && (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-3 duration-250">
+          {/* Outdated Report Warning Banner */}
+          {isReportOutdated && (
+            <div className="p-4 sm:p-5 rounded-[24px] bg-amber-50/90 border border-amber-200 text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="font-bold text-amber-900 block text-sm">Resume Modified Since Last ATS Scan</span>
+                  <p className="text-amber-800 leading-relaxed max-w-2xl">
+                    Your resume draft has been updated in Resume Builder after this analysis was performed. The scores, keyword matches, and recommendations below reflect your earlier draft.
+                  </p>
+                  {savedReportTimestamp && (
+                    <span className="text-[10px] font-medium text-amber-700 block">
+                      Saved scan: {new Date(savedReportTimestamp).toLocaleDateString()} at {new Date(savedReportTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRunAnalysis}
+                disabled={isScanning}
+                className="shrink-0 text-amber-900 border-amber-300 hover:bg-amber-100 font-semibold cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isScanning ? 'animate-spin' : ''}`} />
+                <span>Re-scan Latest Draft</span>
+              </Button>
+            </div>
+          )}
+
+          {/* Score Comparison & Progress Banner (Requirement 6) */}
+          {comparison && (
+            <div className="p-6 sm:p-7 rounded-[28px] bg-[#FAF8F5] border border-[#E8DEC8] shadow-2xs space-y-4 animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[#E8DEC8]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#101010] text-[#F8F5EE] flex items-center justify-center shrink-0 shadow-xs">
+                    <TrendingUp className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-[#101010] flex items-center gap-2">
+                      <span>ATS Score Comparison vs. Previous Scan</span>
+                      <span
+                        className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                          comparison.scoreDelta > 0
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : comparison.scoreDelta < 0
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-zinc-100 text-zinc-700'
+                        }`}
+                      >
+                        {comparison.scoreDelta > 0 ? `+${comparison.scoreDelta} pts` : `${comparison.scoreDelta} pts`}
+                      </span>
+                    </h4>
+                    <p className="text-xs text-[#777777] mt-0.5">
+                      Previous Score: <strong>{comparison.previousScore}/100</strong> → Current Score: <strong>{comparison.currentScore}/100</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-left sm:text-right text-[11px] text-[#777777]">
+                  <span className="block font-medium">Previous Scan: {new Date(comparison.previousAnalyzedAt).toLocaleDateString()}</span>
+                  <span className="font-mono text-[10px] text-[#999999]">Fingerprint: {comparison.previousResumeContentHash}</span>
+                </div>
+              </div>
+
+              {/* Category-Level Deltas Grid */}
+              {comparison.categoryDeltas && comparison.categoryDeltas.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+                  {comparison.categoryDeltas.map((cd) => (
+                    <div key={cd.id} className="p-2.5 rounded-xl bg-white border border-[#EBE6DC] space-y-1">
+                      <span className="text-[10px] text-[#777777] block truncate">{cd.label}</span>
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-bold text-[#101010]">{cd.currentScore}%</span>
+                        <span
+                          className={`text-[10px] font-bold ${
+                            cd.delta > 0
+                              ? 'text-emerald-700'
+                              : cd.delta < 0
+                              ? 'text-rose-600'
+                              : 'text-[#888888]'
+                          }`}
+                        >
+                          {cd.delta > 0 ? `+${cd.delta}%` : cd.delta < 0 ? `${cd.delta}%` : '0%'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Newly Covered Keywords */}
+              {comparison.newlyCoveredKeywords && comparison.newlyCoveredKeywords.length > 0 && (
+                <div className="pt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="text-[11px] font-bold text-emerald-900 flex items-center gap-1 mr-1">
+                    <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Newly Covered Keywords:</span>
+                  </span>
+                  {comparison.newlyCoveredKeywords.map((kw, idx) => (
+                    <span
+                      key={idx}
+                      className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[11px] font-semibold border border-emerald-200"
+                    >
+                      +{kw}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Historical Scan Count Meta */}
+              {savedRecord?.scanHistory && savedRecord.scanHistory.length > 1 && (
+                <div className="pt-2 text-[11px] text-[#777777] flex items-center gap-2">
+                  <History className="w-3.5 h-3.5 text-[#8C6D1F]" />
+                  <span>
+                    <strong>{savedRecord.scanHistory.length} total scans</strong> archived in your ProFile version history.
+                  </span>
+                </div>
+              )}
+
+              {/* Official Transparency Disclaimer */}
+              <p className="text-[10px] text-[#888888] italic pt-1 border-t border-[#EBE3D3]">
+                Disclaimer: ATS score improvements reflect enhanced keyword coverage and structural machine-readability. ProFile does not guarantee interview selection, as hiring decisions involve human recruiter review.
+              </p>
+            </div>
+          )}
+
           {/* Top Score Banner Card */}
           <div className="p-6 sm:p-8 rounded-[32px] bg-white border border-[#E5E0D8] shadow-sm space-y-6">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-6 border-b border-[#E5E0D8]">
@@ -729,8 +1069,8 @@ export function AtsCheckerWorkspace({
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={onNavigateToBuilder}
-                  className="gap-1.5"
+                  onClick={handleApplyInEditor}
+                  className="gap-1.5 cursor-pointer"
                 >
                   <span>Apply in Editor</span>
                   <ArrowRight className="w-3.5 h-3.5" />

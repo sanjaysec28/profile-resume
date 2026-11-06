@@ -7,35 +7,18 @@
  * Produces structured, student-specific resume recommendations.
  */
 
-import { GoogleGenAI } from '@google/genai';
 import {
   RecommendationsGenerationInput,
   ResumeRecommendationsData,
 } from '../types/recommendations.ts';
+import { generateContentWithFallback, GEMINI_GENERATION_MODELS } from './geminiConfig.ts';
 
 /**
- * Generates personalized, verifiable resume recommendations using Gemini 3.8 Flash.
+ * Generates personalized, verifiable resume recommendations using multi-model fallback.
  */
 export async function generateResumeRecommendations(
   input: RecommendationsGenerationInput
 ): Promise<Omit<ResumeRecommendationsData, 'id' | 'setupId' | 'userId' | 'createdAt' | 'updatedAt'>> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-    throw new Error(
-      'GEMINI_API_KEY is not configured on the server. Please ensure the Gemini API key is configured in Settings > Secrets.'
-    );
-  }
-
-  const ai = new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
-
   const prompt = `
 You are the ProFile Senior Career & Resume Architect. Analyze this student candidate and their target role to generate intelligent, actionable, evidence-based recommendations.
 
@@ -205,54 +188,170 @@ Return ONLY valid JSON matching this structure:
 }
 `;
 
-  const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
-  let lastError: Error | null = null;
-  let parsed: any = null;
+  try {
+    const { text: responseText, modelUsed } = await generateContentWithFallback({
+      contents: prompt,
+      systemInstruction:
+        'You are an expert technical resume coach and ATS optimization specialist for college students and fresh graduates. You generate fact-based, rigorous resume recommendations. Never hallucinate achievements or claim the student has completed work they have not.',
+      responseMimeType: 'application/json',
+      models: GEMINI_GENERATION_MODELS,
+      operationName: 'Resume Recommendations',
+    });
 
-  for (const modelName of candidateModels) {
-    try {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-        config: {
-          systemInstruction:
-            'You are an expert technical resume coach and ATS optimization specialist for college students and fresh graduates. You generate fact-based, rigorous resume recommendations. Never hallucinate achievements or claim the student has completed work they have not.',
-          responseMimeType: 'application/json',
-        },
-      });
+    const parsed = JSON.parse(responseText);
 
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error(`Model ${modelName} returned an empty response.`);
-      }
-
-      parsed = JSON.parse(responseText);
-      break; // Successfully generated and parsed
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[Gemini Recommendations Model ${modelName} Notice]:`, msg);
-      lastError = err instanceof Error ? err : new Error(msg);
-      // Continue to fallback model if available
-    }
+    return {
+      targetRole: parsed.targetRole || input.targetRole,
+      purpose: parsed.purpose || input.purpose,
+      sourceJobDescriptionProvided: parsed.sourceJobDescriptionProvided ?? Boolean(input.jobDescriptionText?.trim()),
+      summaryRationale:
+        parsed.summaryRationale ||
+        `Recommendations tailored for ${input.targetRole} based on your academic background in ${input.department}.`,
+      technicalSkills: Array.isArray(parsed.technicalSkills) ? parsed.technicalSkills : [],
+      softSkills: Array.isArray(parsed.softSkills) ? parsed.softSkills : [],
+      sections: Array.isArray(parsed.sections) ? parsed.sections : [],
+      existingProjectAdvice: Array.isArray(parsed.existingProjectAdvice) ? parsed.existingProjectAdvice : [],
+      suggestedProjectIdeas: Array.isArray(parsed.suggestedProjectIdeas) ? parsed.suggestedProjectIdeas : [],
+      keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
+      certifications: Array.isArray(parsed.certifications) ? parsed.certifications : [],
+      isAiGenerated: true,
+      generationSource: 'gemini',
+      modelUsed,
+    };
+  } catch (error) {
+    console.warn('[Resume Recommendations] Remote models unavailable or timed out; generating structured audit fallback:', error);
+    return getDeterministicRecommendationsFallback(input);
   }
+}
 
-  if (!parsed) {
-    throw new Error(`AI Recommendations failed: ${lastError?.message || 'Unable to generate response from available AI models.'}`);
-  }
+function getDeterministicRecommendationsFallback(input: RecommendationsGenerationInput) {
+  const role = input.targetRole || 'Software Engineer';
+  const isFrontend = role.toLowerCase().includes('front') || role.toLowerCase().includes('react');
+  const isData = role.toLowerCase().includes('data') || role.toLowerCase().includes('analytics') || role.toLowerCase().includes('ml');
+
+  const defaultTech = isFrontend
+    ? ['TypeScript', 'React', 'HTML5 & CSS3', 'Tailwind CSS', 'Next.js', 'REST APIs', 'Git']
+    : isData
+    ? ['Python', 'SQL', 'Pandas & NumPy', 'Data Visualization', 'Scikit-Learn', 'Git']
+    : ['Java', 'Python', 'Data Structures & Algorithms', 'SQL', 'RESTful Web Services', 'Git', 'Linux Fundamentals'];
 
   return {
-    targetRole: parsed.targetRole || input.targetRole,
-    purpose: parsed.purpose || input.purpose,
-    sourceJobDescriptionProvided: parsed.sourceJobDescriptionProvided ?? Boolean(input.jobDescriptionText?.trim()),
-    summaryRationale:
-      parsed.summaryRationale ||
-      `Recommendations tailored for ${input.targetRole} based on your academic background in ${input.department}.`,
-    technicalSkills: Array.isArray(parsed.technicalSkills) ? parsed.technicalSkills : [],
-    softSkills: Array.isArray(parsed.softSkills) ? parsed.softSkills : [],
-    sections: Array.isArray(parsed.sections) ? parsed.sections : [],
-    existingProjectAdvice: Array.isArray(parsed.existingProjectAdvice) ? parsed.existingProjectAdvice : [],
-    suggestedProjectIdeas: Array.isArray(parsed.suggestedProjectIdeas) ? parsed.suggestedProjectIdeas : [],
-    keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
-    certifications: Array.isArray(parsed.certifications) ? parsed.certifications : [],
+    targetRole: role,
+    purpose: input.purpose,
+    sourceJobDescriptionProvided: Boolean(input.jobDescriptionText?.trim()),
+    summaryRationale: `Structured industry baseline recommendations tailored for ${role} entry-level candidates.`,
+    technicalSkills: defaultTech.map((skill, idx) => ({
+      id: `tech-fallback-${idx + 1}`,
+      title: skill,
+      category: (idx < 3 ? 'essential' : 'supporting') as 'essential' | 'supporting' | 'beginner',
+      proficiencyLevel: 'intermediate' as const,
+      importance: (idx < 3 ? 'essential' : 'recommended') as 'essential' | 'high' | 'recommended' | 'optional',
+      explanation: `Core technical competency heavily evaluated in entry-level ${role} technical screens.`,
+      whyItMatters: `Standard industry baseline tool for modern ${role} development.`,
+      status: 'suggested' as const,
+    })),
+    softSkills: [
+      {
+        id: 'soft-fallback-1',
+        title: 'Technical Problem Solving',
+        importance: 'essential' as const,
+        explanation: 'Ability to deconstruct ambiguous software problems into modular algorithmic steps.',
+        whyItMatters: 'Primary attribute evaluated during technical whiteboard and live coding sessions.',
+        demonstrationContext: 'Highlight in project descriptions and coding coursework.',
+        status: 'suggested' as const,
+      },
+      {
+        id: 'soft-fallback-2',
+        title: 'Engineering Collaboration',
+        importance: 'high' as const,
+        explanation: 'Experience with code reviews, branching models, and cross-functional team discussions.',
+        whyItMatters: 'Demonstrates readiness to onboard into production engineering environments.',
+        demonstrationContext: 'Highlight in hackathon or capstone project experiences.',
+        status: 'suggested' as const,
+      }
+    ],
+    sections: [
+      {
+        id: 'sec-fallback-1',
+        title: 'Education',
+        sectionKey: 'education' as const,
+        suggestedOrder: 1,
+        isOptional: false,
+        importance: 'essential' as const,
+        explanation: 'Must appear at the top for current undergraduate and fresher resumes.',
+        whyItMatters: 'Establishes candidate academic timeline and major.',
+        contentTips: 'List expected graduation year and relevant CS coursework.',
+        status: 'suggested' as const,
+      },
+      {
+        id: 'sec-fallback-2',
+        title: 'Projects',
+        sectionKey: 'projects' as const,
+        suggestedOrder: 2,
+        isOptional: false,
+        importance: 'essential' as const,
+        explanation: 'Primary proof of hands-on technical competence for freshers.',
+        whyItMatters: 'Demonstrates coding ability beyond classroom theory.',
+        contentTips: 'Quantify metrics and detail tech stacks used.',
+        status: 'suggested' as const,
+      }
+    ],
+    existingProjectAdvice: (input.existingProjects || []).map((p) => ({
+      id: `proj-adv-${p.id}`,
+      title: `Enhance ${p.title} with measurable outcomes`,
+      existingProjectId: p.id,
+      relevanceScore: 85,
+      importance: 'high' as const,
+      explanation: 'Strengthen bullet points by adding quantifiable technical impact and tools used.',
+      whyItMatters: 'ATS parsers and engineering recruiters scan for action verbs and performance metrics.',
+      bulletImprovementTips: [
+        'Start each bullet with a strong action verb (e.g. Architected, Engineered, Optimized).',
+        'State the specific problem solved and include estimated latency or scale impact [X%].',
+      ],
+      status: 'suggested' as const,
+    })),
+    suggestedProjectIdeas: [
+      {
+        id: 'idea-fallback-1',
+        title: `Full-Stack ${role} Application`,
+        techStack: defaultTech.slice(0, 4),
+        complexity: 'Intermediate' as const,
+        sampleDeliverables: ['REST API backend', 'Interactive frontend', 'CI/CD deployment pipeline'],
+        disclaimer: 'Suggested idea for future build; do not mark as completed until built.',
+        importance: 'recommended' as const,
+        explanation: `Demonstrates end-to-end full lifecycle architecture directly relevant to ${role}.`,
+        whyItMatters: 'Shows prospective employers you can build and ship software independently.',
+        status: 'suggested' as const,
+      }
+    ],
+    keywords: [
+      {
+        id: 'kw-fallback-1',
+        title: role,
+        keyword: role,
+        isMatchedInResume: false,
+        suggestedSection: 'summary' as const,
+        placementExample: `Aspiring ${role} passionate about building scalable web applications.`,
+        importance: 'essential' as const,
+        explanation: 'Primary job title keyword required for ATS matching.',
+        whyItMatters: 'Directly impacts keyword match score in automated recruitment filters.',
+        status: 'suggested' as const,
+      }
+    ],
+    certifications: [
+      {
+        id: 'cert-fallback-1',
+        title: 'Foundational Cloud / Engineering Credential',
+        issuingOrganization: 'AWS / Google Cloud / Meta',
+        credibilityLevel: 'Industry Standard' as const,
+        isCompletedByStudent: false,
+        importance: 'recommended' as const,
+        explanation: 'Validates baseline cloud and DevOps principles.',
+        whyItMatters: 'Recognized industry standard verification of technical knowledge.',
+        status: 'suggested' as const,
+      }
+    ],
+    isAiGenerated: false,
+    generationSource: 'structured-fallback' as const,
   };
 }

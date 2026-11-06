@@ -59,6 +59,9 @@ export interface ContentAssistantResponse {
   atsScoreImpactNote: string;
   actionApplied: ContentAssistantAction;
   recommendedHeading?: string;
+  modelUsed?: string;
+  generationSource?: 'gemini' | 'structured-fallback';
+  isAiGenerated?: boolean;
 }
 
 export interface SectionConfigItem {

@@ -26,6 +26,7 @@ import {
   ArrowRight,
   ShieldCheck,
   CheckCircle2,
+  Sparkles,
 } from 'lucide-react';
 import {
   ContentAssistantAction,
@@ -45,6 +46,15 @@ import {
   clearStagedDraft,
 } from '../../../../lib/contentAssistantService.ts';
 
+export interface AtsFindingContext {
+  findingTitle: string;
+  findingDescription: string;
+  suggestedImprovement?: string;
+  missingKeywords?: string[];
+  evidenceOrMissing?: string;
+  priority?: string;
+}
+
 interface AiContentAssistantModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -59,6 +69,7 @@ interface AiContentAssistantModalProps {
     itemTitle?: string;
     itemTechStack?: string[];
   };
+  atsFindingContext?: AtsFindingContext;
   onApplyContent: (result: {
     section: ContentAssistantSection;
     text: string;
@@ -90,6 +101,7 @@ export function AiContentAssistantModal({
   initialAction = 'generate',
   initialContent = '',
   itemContext,
+  atsFindingContext,
   onApplyContent,
 }: AiContentAssistantModalProps) {
   const [selectedSection, setSelectedSection] = useState<ContentAssistantSection>(initialSection);
@@ -111,9 +123,22 @@ export function AiContentAssistantModal({
   useEffect(() => {
     if (isOpen) {
       setSelectedSection(initialSection);
-      setSelectedAction(initialAction);
+      setSelectedAction(atsFindingContext ? 'ats_keywords' : initialAction);
       setItemTitle(itemContext?.itemTitle || '');
       setItemTechStack(itemContext?.itemTechStack?.join(', ') || '');
+
+      if (atsFindingContext) {
+        let instructions = '';
+        if (atsFindingContext.suggestedImprovement) {
+          instructions = atsFindingContext.suggestedImprovement;
+        }
+        if (atsFindingContext.missingKeywords && atsFindingContext.missingKeywords.length > 0) {
+          instructions += (instructions ? ' ' : '') + `Incorporate keywords: ${atsFindingContext.missingKeywords.join(', ')}.`;
+        }
+        setCustomInstructions(instructions);
+      } else {
+        setCustomInstructions('');
+      }
 
       let initialOriginal = '';
       if (typeof initialContent === 'string' && initialContent.trim().length > 0) {
@@ -377,6 +402,42 @@ export function AiContentAssistantModal({
 
         {/* Modal Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
+          {/* ATS Finding Context Banner */}
+          {atsFindingContext && (
+            <div className="p-4 rounded-2xl bg-[#FAF5EC] border border-[#E8DEC8] text-xs space-y-2 shadow-2xs animate-in fade-in duration-150">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-[#101010] flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>Targeting ATS Finding: {atsFindingContext.findingTitle}</span>
+                </span>
+                {atsFindingContext.priority && (
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      atsFindingContext.priority === 'high'
+                        ? 'bg-rose-100 text-rose-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {atsFindingContext.priority.toUpperCase()} PRIORITY
+                  </span>
+                )}
+              </div>
+              <p className="text-[#666666] leading-relaxed">
+                {atsFindingContext.findingDescription}
+              </p>
+              {atsFindingContext.missingKeywords && atsFindingContext.missingKeywords.length > 0 && (
+                <div className="pt-1 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] font-semibold text-[#8C6D1F]">Keywords to Weave in:</span>
+                  {atsFindingContext.missingKeywords.map((kw, i) => (
+                    <span key={i} className="px-2 py-0.5 rounded-full bg-white text-[#101010] border border-[#E8DEC8] text-[10px] font-medium">
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Action Selector Grid */}
           <div>
             <label className="text-xs font-bold text-[#171513] uppercase tracking-wider block mb-2">

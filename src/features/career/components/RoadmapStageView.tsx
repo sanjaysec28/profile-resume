@@ -25,6 +25,8 @@ import {
   ChevronUp,
   Layers,
   HelpCircle,
+  Sparkles,
+  ArrowRight,
 } from 'lucide-react';
 
 interface RoadmapStageViewProps {
@@ -32,6 +34,7 @@ interface RoadmapStageViewProps {
   onUpdateTaskStatus: (taskId: string, status: RoadmapTaskStatus, notes?: string) => void;
   onAddTask: (stageId: RoadmapStageId, title: string, objective: string) => void;
   onDeleteTask: (taskId: string) => void;
+  onNavigateToInterviewPrep?: (context?: { tab?: string; category?: string; topic?: string }) => void;
 }
 
 export function RoadmapStageView({
@@ -39,6 +42,7 @@ export function RoadmapStageView({
   onUpdateTaskStatus,
   onAddTask,
   onDeleteTask,
+  onNavigateToInterviewPrep,
 }: RoadmapStageViewProps) {
   const [activeStageId, setActiveStageId] = useState<string>(stages[0]?.id || 'foundation');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
@@ -146,6 +150,75 @@ export function RoadmapStageView({
             <Plus className="w-3.5 h-3.5" />
             <span>Add Custom Task</span>
           </button>
+        </div>
+      )}
+
+      {/* Stage 6: Interview Preparation Workspace Gateway */}
+      {currentStage?.id === 'interview-prep' && (
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-[#FAF5EC] via-[#FDFBF7] to-[#FAF5EC] border border-[#E8DEC8] rounded-2xl space-y-4 text-xs shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-[#101010] text-[#F8F5EE] flex items-center justify-center shrink-0 shadow-xs">
+                <Sparkles className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8C6D1F] bg-white border border-[#E8DEC8] px-2.5 py-0.5 rounded-full">
+                    Stage 6 Capstone
+                  </span>
+                  <span className="text-xs font-bold text-[#101010]">
+                    Live Placement &amp; Mock Interview Training
+                  </span>
+                </div>
+                <p className="text-[#666666] mt-1 leading-relaxed max-w-xl">
+                  Ready to put your learning into practice? Launch the Interview Intelligence workspace to rehearse realistic placement rounds, defend your resume projects, practice 10 core DSA topics, and evaluate your STAR behavioral answers.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigateToInterviewPrep?.()}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#101010] text-white font-semibold text-xs hover:bg-[#252525] transition-all shadow-xs cursor-pointer shrink-0"
+            >
+              <span>Launch Interview Prep</span>
+              <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
+            </button>
+          </div>
+
+          {/* Quick Target Practice Options */}
+          <div className="pt-3 border-t border-[#EBE3D3] flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-bold text-[#777777] uppercase tracking-wider">
+              Quick Practice Mode:
+            </span>
+            <button
+              type="button"
+              onClick={() => onNavigateToInterviewPrep?.({ tab: 'mock', category: 'mixed-comprehensive' })}
+              className="px-3 py-1 rounded-lg bg-white border border-[#DDD5C7] text-[#101010] hover:bg-[#FAF5EC] font-semibold text-[11px] transition-colors cursor-pointer"
+            >
+              Diagnostic Mock (5 Questions)
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateToInterviewPrep?.({ tab: 'resume-questions', category: 'resume-focused' })}
+              className="px-3 py-1 rounded-lg bg-white border border-[#DDD5C7] text-[#101010] hover:bg-[#FAF5EC] font-semibold text-[11px] transition-colors cursor-pointer"
+            >
+              Resume Defense Drill
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateToInterviewPrep?.({ tab: 'dsa' })}
+              className="px-3 py-1 rounded-lg bg-white border border-[#DDD5C7] text-[#101010] hover:bg-[#FAF5EC] font-semibold text-[11px] transition-colors cursor-pointer"
+            >
+              DSA &amp; Coding Patterns
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateToInterviewPrep?.({ tab: 'hr' })}
+              className="px-3 py-1 rounded-lg bg-white border border-[#DDD5C7] text-[#101010] hover:bg-[#FAF5EC] font-semibold text-[11px] transition-colors cursor-pointer"
+            >
+              HR &amp; STAR Behavioral
+            </button>
+          </div>
         </div>
       )}
 
@@ -310,6 +383,50 @@ export function RoadmapStageView({
                       </div>
                     )}
                   </div>
+
+                  {/* Interview Preparation Relevance */}
+                  {task.interviewTopics && task.interviewTopics.length > 0 && (
+                    <div className="p-3 bg-[#FAF8F5] rounded-xl border border-[#EBE3D3] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#8C6D1F]">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Interview Skills Prepared by this Milestone:</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {task.interviewTopics.map((top, idx) => (
+                            <span
+                              key={idx}
+                              className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-white border border-[#E5E0D8] text-[#333333]"
+                            >
+                              {top}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {onNavigateToInterviewPrep && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onNavigateToInterviewPrep({
+                              tab:
+                                task.stageId === 'foundation'
+                                  ? 'dsa'
+                                  : task.stageId === 'portfolio'
+                                  ? 'resume-questions'
+                                  : 'mock',
+                              category: task.practiceCategory || 'technical-fundamentals',
+                              topic: task.interviewTopics?.[0],
+                            })
+                          }
+                          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#101010] text-white hover:bg-[#252525] text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                        >
+                          <span>Practice in Interview Hub</span>
+                          <ArrowRight className="w-3 h-3 text-amber-400" />
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {/* Completion Criteria */}
                   <div className="text-[11px] text-emerald-900 bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-200">

@@ -13,6 +13,7 @@ import {
   CareerChatMessage,
 } from '../../../types/careerIntelligence.ts';
 import { askCareerAssistant } from '../../../lib/careerIntelligenceService.ts';
+import { InterviewDashboardMetrics } from '../../../types/interviewIntelligence.ts';
 import {
   Send,
   Loader2,
@@ -24,6 +25,7 @@ import {
 
 interface CareerAiAssistantPanelProps {
   careerPlan: CareerPlan;
+  interviewMetrics?: InterviewDashboardMetrics | null;
 }
 
 const SUGGESTED_QUESTIONS = [
@@ -33,7 +35,7 @@ const SUGGESTED_QUESTIONS = [
   'Which topics should I prioritize before campus placements?',
 ];
 
-export function CareerAiAssistantPanel({ careerPlan }: CareerAiAssistantPanelProps) {
+export function CareerAiAssistantPanel({ careerPlan, interviewMetrics }: CareerAiAssistantPanelProps) {
   const [messages, setMessages] = useState<CareerChatMessage[]>([
     {
       id: 'welcome',
@@ -61,7 +63,7 @@ export function CareerAiAssistantPanel({ careerPlan }: CareerAiAssistantPanelPro
     setIsLoading(true);
 
     try {
-      const reply = await askCareerAssistant(q, messages, careerPlan);
+      const reply = await askCareerAssistant(q, messages, careerPlan, interviewMetrics);
       const assistantMsg: CareerChatMessage = {
         id: `ast_${Date.now()}`,
         role: 'assistant',

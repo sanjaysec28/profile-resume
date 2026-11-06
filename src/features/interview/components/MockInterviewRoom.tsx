@@ -28,6 +28,7 @@ import {
   StopCircle,
   FileText,
   Clock,
+  Target,
 } from 'lucide-react';
 import {
   InterviewSession,
@@ -84,6 +85,14 @@ export const MockInterviewRoom: React.FC<MockInterviewRoomProps> = ({
   );
   const [selectedDifficulty, setSelectedDifficulty] = useState<QuestionDifficulty>('medium');
   const [selectedLength, setSelectedLength] = useState<number>(5);
+  const [targetedGaps, setTargetedGaps] = useState<string[]>(missingSkills);
+
+  // Sync targetedGaps when missingSkills prop changes
+  useEffect(() => {
+    if (missingSkills && missingSkills.length > 0) {
+      setTargetedGaps((prev) => Array.from(new Set([...prev, ...missingSkills])));
+    }
+  }, [missingSkills]);
 
   // Active session state
   const [session, setSession] = useState<InterviewSession | null>(activeSession);
@@ -148,7 +157,7 @@ export const MockInterviewRoom: React.FC<MockInterviewRoomProps> = ({
         academicYear,
         degree,
         verifiedSkills,
-        missingSkills,
+        missingSkills: targetedGaps,
         projectsSummary,
       };
 
@@ -347,6 +356,44 @@ export const MockInterviewRoom: React.FC<MockInterviewRoomProps> = ({
                 ))}
               </div>
             </div>
+
+            {/* Career Roadmap Skill Gaps Integration */}
+            {targetedGaps.length > 0 && (
+              <div className="p-3.5 bg-[#FAF5EC] border border-[#E8DEC8] rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Target className="w-4 h-4 text-[#8C6D1F]" />
+                    <span className="text-xs font-bold text-[#101010]">
+                      Target Identified Skill Gaps from Career Roadmap
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-[#777777]">
+                    {targetedGaps.length} selected for questions
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#777777]">
+                  Questions will probe these competencies to help you measure improvement and bridge readiness gaps.
+                </p>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {targetedGaps.map((gap) => (
+                    <span
+                      key={gap}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-[#E8DEC8] text-xs font-semibold text-[#8C6D1F]"
+                    >
+                      <span>{gap}</span>
+                      <button
+                        type="button"
+                        onClick={() => setTargetedGaps((prev) => prev.filter((g) => g !== gap))}
+                        className="hover:text-rose-600 transition-colors ml-0.5 text-xs font-bold cursor-pointer"
+                        title="Remove from this session"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Difficulty & Length Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

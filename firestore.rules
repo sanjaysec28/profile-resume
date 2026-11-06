@@ -23,13 +23,36 @@ service cloud.firestore {
       // Disallow user profile document deletion from client
       allow delete: if false;
 
+      // Cloud resume documents stored at users/{userId}/resumes/{resumeId}
+      match /resumes/{resumeId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
       // Resume setup wizard documents stored at users/{userId}/resumeSetups/{setupId}
       match /resumeSetups/{setupId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
+      // Legacy setup collection aliases for backward compatibility
+      match /resume_setup/{setupId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /resumeSetup/{setupId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
       // Resume review documents stored at users/{userId}/resumeReviews/{reviewId}
       match /resumeReviews/{reviewId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // ATS analysis reports stored at users/{userId}/atsReports/{reportId}
+      match /atsReports/{reportId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Owner-scoped ATS documents stored under users/{userId}/ats/{document=**}
+      match /ats/{document=**} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 

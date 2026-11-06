@@ -34,9 +34,11 @@ interface JobDiscoveryWorkspaceProps {
   matchMap: Record<string, JobResumeMatchAnalysis>;
   eligibilityMap: Record<string, EligibilityAssessment>;
   savedJobIds: Set<string>;
+  trackedJobIds?: Set<string>;
   onToggleSaveJob: (job: VerifiedJobOpportunity) => void;
   onSelectJob: (job: VerifiedJobOpportunity) => void;
   onPrepareApplication: (job: VerifiedJobOpportunity) => void;
+  onTrackJob?: (job: VerifiedJobOpportunity) => void;
 }
 
 export const JobDiscoveryWorkspace: React.FC<JobDiscoveryWorkspaceProps> = ({
@@ -44,9 +46,11 @@ export const JobDiscoveryWorkspace: React.FC<JobDiscoveryWorkspaceProps> = ({
   matchMap,
   eligibilityMap,
   savedJobIds,
+  trackedJobIds = new Set(),
   onToggleSaveJob,
   onSelectJob,
   onPrepareApplication,
+  onTrackJob,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedJobType, setSelectedJobType] = useState<'all' | 'internship' | 'full-time'>('all');
@@ -226,18 +230,37 @@ export const JobDiscoveryWorkspace: React.FC<JobDiscoveryWorkspaceProps> = ({
                       </h3>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => onToggleSaveJob(job)}
-                      className={`p-2 rounded-lg border transition-all cursor-pointer ${
-                        isSaved
-                          ? 'bg-[#101010] text-[#F8F5EE] border-[#101010]'
-                          : 'bg-[#FAF9F5] text-[#666666] border-[#E5E0D8] hover:border-[#101010]'
-                      }`}
-                      title={isSaved ? 'Unsave Job' : 'Save Job'}
-                    >
-                      {isSaved ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
-                    </button>
+                    {/* Action buttons: Track and Save */}
+                    <div className="flex items-center gap-1.5">
+                      {trackedJobIds.has(job.id) ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-stone-100 border border-stone-300 rounded-lg text-[11px] font-semibold text-[#101010]">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>Tracked</span>
+                        </span>
+                      ) : onTrackJob ? (
+                        <button
+                          type="button"
+                          onClick={() => onTrackJob(job)}
+                          className="px-2.5 py-1.5 bg-[#FAF9F5] border border-[#E5E0D8] hover:border-[#101010] rounded-lg text-[11px] font-semibold text-[#101010] transition-all cursor-pointer"
+                          title="Track in Application Tracker"
+                        >
+                          + Track
+                        </button>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        onClick={() => onToggleSaveJob(job)}
+                        className={`p-2 rounded-lg border transition-all cursor-pointer ${
+                          isSaved
+                            ? 'bg-[#101010] text-[#F8F5EE] border-[#101010]'
+                            : 'bg-[#FAF9F5] text-[#666666] border-[#E5E0D8] hover:border-[#101010]'
+                        }`}
+                        title={isSaved ? 'Unsave Job' : 'Save Job'}
+                      >
+                        {isSaved ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Badges: Match & Eligibility */}
@@ -255,14 +278,18 @@ export const JobDiscoveryWorkspace: React.FC<JobDiscoveryWorkspaceProps> = ({
                             ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                             : eligibility.overallStatus === 'potentially-eligible'
                             ? 'bg-amber-50 text-amber-800 border-amber-200'
-                            : 'bg-rose-50 text-rose-800 border-rose-200'
+                            : eligibility.overallStatus === 'likely-not-eligible'
+                            ? 'bg-rose-50 text-rose-800 border-rose-200'
+                            : 'bg-stone-50 text-stone-700 border-stone-200'
                         }`}
                       >
                         {eligibility.overallStatus === 'appears-eligible'
                           ? 'Appears Eligible'
                           : eligibility.overallStatus === 'potentially-eligible'
                           ? 'Verify Eligibility'
-                          : 'Likely Not Eligible'}
+                          : eligibility.overallStatus === 'likely-not-eligible'
+                          ? 'Likely Not Eligible'
+                          : 'Eligibility Unknown'}
                       </span>
                     )}
 

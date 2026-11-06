@@ -7,7 +7,7 @@
  * in Firestore under users/{userId}/resumeSetups/{setupId} with localStorage caching.
  */
 
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase.ts';
 import {
   ResumeSetupData,
@@ -17,6 +17,7 @@ import {
 } from '../types/resumeSetup.ts';
 import { StudentProfile } from '../types/profile.ts';
 import { User } from 'firebase/auth';
+import { sanitizeForFirestore } from './resumePersistenceService.ts';
 
 const STORAGE_KEY_CURRENT = 'profile_resume_setup_active';
 
@@ -68,6 +69,7 @@ export function createInitialResumeSetup(
 
 /**
  * Persists resume setup state to Firestore and local storage.
+ * Writes to both 'current' for constant-time lookup and historical timestamp ID for audit history.
  */
 export async function saveResumeSetup(setup: ResumeSetupData): Promise<void> {
   // Always update local cache first for instant responsiveness
@@ -83,15 +85,32 @@ export async function saveResumeSetup(setup: ResumeSetupData): Promise<void> {
   // Persist to Cloud Firestore if user is authenticated and DB is ready
   if (db && setup.userId) {
     try {
-      const setupDocRef = doc(db, 'users', setup.userId, 'resumeSetups', setup.id || 'current');
+      const sanitized = sanitizeForFirestore(setup);
+
+      // 1. Always update canonical 'current' pointer for deterministic single-document fetches
+      const currentDocRef = doc(db, 'users', setup.userId, 'resumeSetups', 'current');
       await setDoc(
-        setupDocRef,
+        currentDocRef,
         {
-          ...setup,
+          ...sanitized,
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
+
+      // 2. Only write to a historical snapshot document when the setup wizard is completed,
+      // avoiding duplicate documents on intermediate draft steps
+      if (setup.status === 'completed' && setup.id && setup.id !== 'current') {
+        const historicalDocRef = doc(db, 'users', setup.userId, 'resumeSetups', setup.id);
+        await setDoc(
+          historicalDocRef,
+          {
+            ...sanitized,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
     } catch (err) {
       console.warn('[ResumeSetup] Firestore sync failed (cached locally):', err);
     }
@@ -100,6 +119,8 @@ export async function saveResumeSetup(setup: ResumeSetupData): Promise<void> {
 
 /**
  * Retrieves the active resume setup from Firestore or local storage.
+ * Gracefully migrates any historical records if 'current' does not exist yet,
+ * and checks legacy collection paths (resume_setup, resumeSetup) for complete backward compatibility.
  */
 export async function getActiveResumeSetup(userId?: string): Promise<ResumeSetupData | null> {
   // 1. Try local storage cache for zero-latency retrieval
@@ -118,14 +139,51 @@ export async function getActiveResumeSetup(userId?: string): Promise<ResumeSetup
   // 2. Fetch from Cloud Firestore if authenticated
   if (db && userId) {
     try {
-      const docRef = doc(db, 'users', userId, 'resumeSetups', 'current');
-      const snap = await getDoc(docRef);
+      // 2a. First attempt to load 'current' document
+      const currentDocRef = doc(db, 'users', userId, 'resumeSetups', 'current');
+      const snap = await getDoc(currentDocRef);
       if (snap.exists()) {
         const data = snap.data() as ResumeSetupData;
         try {
           localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(data));
         } catch {}
         return data;
+      }
+
+      // 2b. Backward compatibility: if 'current' does not exist, query historical documents
+      // Checks resumeSetups, then legacy aliases resume_setup and resumeSetup
+      const collectionsToCheck = ['resumeSetups', 'resume_setup', 'resumeSetup'];
+      for (const colName of collectionsToCheck) {
+        try {
+          const colRef = collection(db, 'users', userId, colName);
+          const snaps = await getDocs(colRef);
+          if (!snaps.empty) {
+            const candidates = snaps.docs
+              .map((d) => d.data() as ResumeSetupData)
+              .filter((d) => d && d.targetRole);
+
+            if (candidates.length > 0) {
+              candidates.sort(
+                (a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+              );
+              const latest = candidates[0];
+
+              // Migrate to canonical 'current' document in resumeSetups so subsequent loads are instant
+              await setDoc(
+                currentDocRef,
+                { ...sanitizeForFirestore(latest), updatedAt: serverTimestamp() },
+                { merge: true }
+              );
+
+              try {
+                localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(latest));
+              } catch {}
+              return latest;
+            }
+          }
+        } catch {
+          // Continue to next alias
+        }
       }
     } catch (err) {
       console.warn('[ResumeSetup] Firestore fetch failed:', err);

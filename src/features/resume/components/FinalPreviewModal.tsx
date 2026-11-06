@@ -46,7 +46,13 @@ export function FinalPreviewModal({
   onSelectTemplate,
   onOpenReview,
 }: FinalPreviewModalProps) {
-  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomLevel, setZoomLevel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      if (window.innerWidth < 640) return 0.55;
+      if (window.innerWidth < 1024) return 0.75;
+    }
+    return 1;
+  });
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<string>('');
   const [showChecklistWarning, setShowChecklistWarning] = useState(false);
@@ -383,24 +389,26 @@ export function FinalPreviewModal({
 
         {/* Scrollable Document Area with Zoom Toggles */}
         <div className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain py-6 flex justify-center bg-[#ECE6DA]/40 rounded-2xl my-3 p-4 sm:p-8">
-          {/* Floating Zoom Controls matching reference */}
-          <div className="fixed sm:absolute right-6 sm:right-8 top-28 sm:top-8 z-20 flex flex-col items-center gap-1.5 p-1.5 bg-white/90 backdrop-blur-md rounded-2xl border border-[#E5E0D8] shadow-md text-[#101010]">
+          {/* Floating Zoom Controls: bottom horizontal on mobile, top-right vertical on tablet/desktop */}
+          <div className="fixed sm:absolute right-4 sm:right-8 bottom-4 sm:bottom-auto sm:top-8 z-20 flex flex-row sm:flex-col items-center gap-1.5 p-1.5 bg-white/95 backdrop-blur-md rounded-2xl border border-[#E5E0D8] shadow-lg text-[#101010]">
             <button
               type="button"
               onClick={() => setZoomLevel((z) => Math.min(1.4, z + 0.1))}
               className="p-2 hover:bg-[#F2ECE0] rounded-xl transition-colors cursor-pointer"
               title="Zoom In"
+              aria-label="Zoom In"
             >
               <Plus className="w-4 h-4" />
             </button>
-            <span className="text-[11px] font-mono font-bold px-1 py-0.5 select-none">
+            <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 select-none text-center min-w-[36px]">
               {Math.round(zoomLevel * 100)}%
             </span>
             <button
               type="button"
-              onClick={() => setZoomLevel((z) => Math.max(0.6, z - 0.1))}
+              onClick={() => setZoomLevel((z) => Math.max(0.4, z - 0.1))}
               className="p-2 hover:bg-[#F2ECE0] rounded-xl transition-colors cursor-pointer"
               title="Zoom Out"
+              aria-label="Zoom Out"
             >
               <Minus className="w-4 h-4" />
             </button>
@@ -409,6 +417,7 @@ export function FinalPreviewModal({
               onClick={() => setZoomLevel(1)}
               className="p-2 hover:bg-[#F2ECE0] rounded-xl transition-colors cursor-pointer"
               title="Reset Zoom"
+              aria-label="Reset Zoom"
             >
               <RotateCcw className="w-3.5 h-3.5 text-[#777777]" />
             </button>

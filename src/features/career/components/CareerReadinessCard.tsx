@@ -8,6 +8,7 @@
  */
 
 import { CareerReadinessEvaluation } from '../../../types/careerIntelligence.ts';
+import { InterviewDashboardMetrics } from '../../../types/interviewIntelligence.ts';
 import {
   ShieldCheck,
   Award,
@@ -17,6 +18,9 @@ import {
   FolderGit2,
   CheckCircle2,
   TrendingUp,
+  Mic,
+  ArrowRight,
+  Info,
 } from 'lucide-react';
 
 interface CareerReadinessCardProps {
@@ -26,6 +30,8 @@ interface CareerReadinessCardProps {
   graduationYear: string;
   degree: string;
   major: string;
+  interviewMetrics?: InterviewDashboardMetrics | null;
+  onNavigateToInterview?: () => void;
 }
 
 export function CareerReadinessCard({
@@ -35,6 +41,8 @@ export function CareerReadinessCard({
   graduationYear,
   degree,
   major,
+  interviewMetrics,
+  onNavigateToInterview,
 }: CareerReadinessCardProps) {
   const getScoreColor = (score: number) => {
     if (score >= 75) return 'text-emerald-700 bg-emerald-50 border-emerald-200';
@@ -220,6 +228,102 @@ export function CareerReadinessCard({
               <li className="text-[#888888] italic">All essential core competencies currently demonstrated!</li>
             )}
           </ul>
+        </div>
+      </div>
+
+      {/* Connected Interview Preparation & Simulation Analytics */}
+      <div className="pt-4 border-t border-[#F0ECE3] space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Mic className="w-4 h-4 text-[#8C6D1F]" />
+            <h4 className="text-xs sm:text-sm font-bold text-[#101010]">
+              Interview Intelligence &amp; Practice Progress
+            </h4>
+          </div>
+          {onNavigateToInterview && (
+            <button
+              type="button"
+              onClick={onNavigateToInterview}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8C6D1F] hover:text-[#705615] underline cursor-pointer"
+            >
+              <span>Launch Mock Interview Room</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {interviewMetrics ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="p-3 bg-[#FAF9F5] border border-[#E5E0D8] rounded-xl text-center">
+              <span className="text-[10px] uppercase font-bold text-[#777777] tracking-wider block">
+                Mock Sessions
+              </span>
+              <span className="text-lg font-mono font-bold text-[#101010]">
+                {interviewMetrics.totalSessionsCompleted}
+              </span>
+              <span className="text-[10px] text-[#777777] block mt-0.5">
+                {interviewMetrics.averageMockScore > 0 ? `${interviewMetrics.averageMockScore}/100 avg` : 'No scores yet'}
+              </span>
+            </div>
+
+            <div className="p-3 bg-[#FAF9F5] border border-[#E5E0D8] rounded-xl text-center">
+              <span className="text-[10px] uppercase font-bold text-[#777777] tracking-wider block">
+                DSA Topics
+              </span>
+              <span className="text-lg font-mono font-bold text-[#101010]">
+                {interviewMetrics.dsaTopicsCompletedCount}/{interviewMetrics.dsaTotalTopics}
+              </span>
+              <span className="text-[10px] text-[#777777] block mt-0.5">
+                {Math.round((interviewMetrics.dsaTopicsCompletedCount / Math.max(interviewMetrics.dsaTotalTopics, 1)) * 100)}% coverage
+              </span>
+            </div>
+
+            <div className="p-3 bg-[#FAF9F5] border border-[#E5E0D8] rounded-xl text-center">
+              <span className="text-[10px] uppercase font-bold text-[#777777] tracking-wider block">
+                Tech Readiness
+              </span>
+              <span className="text-lg font-mono font-bold text-[#101010]">
+                {interviewMetrics.technicalReadinessPercent}%
+              </span>
+              <span className="text-[10px] text-[#777777] block mt-0.5">
+                Mock + Coding weight
+              </span>
+            </div>
+
+            <div className="p-3 bg-[#FAF9F5] border border-[#E5E0D8] rounded-xl text-center">
+              <span className="text-[10px] uppercase font-bold text-[#777777] tracking-wider block">
+                HR &amp; Behavioral
+              </span>
+              <span className="text-lg font-mono font-bold text-[#101010]">
+                {interviewMetrics.hrReadinessPercent}%
+              </span>
+              <span className="text-[10px] text-[#777777] block mt-0.5">
+                STAR story coverage
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 bg-[#FAF9F5] border border-[#E5E0D8] rounded-xl text-xs text-[#777777] flex items-center justify-between">
+            <span>No interview sessions recorded yet. Start your first mock to track technical &amp; behavioral readiness.</span>
+            {onNavigateToInterview && (
+              <button
+                type="button"
+                onClick={onNavigateToInterview}
+                className="px-3 py-1 bg-[#101010] text-white rounded-lg text-xs font-semibold hover:bg-[#252525] shrink-0 ml-3 cursor-pointer"
+              >
+                Start Practice
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Factual Integrity & Scoring Model Explanation */}
+        <div className="p-3 bg-[#FAF5EC] border border-[#E8DEC8] rounded-xl text-[11px] text-[#8C6D1F] flex items-start gap-2">
+          <Info className="w-4 h-4 shrink-0 mt-0.5 text-[#8C6D1F]" />
+          <div>
+            <strong>Scoring Model Distinction: </strong>
+            Career Readiness ({readiness.overallReadinessScore}/100) measures verifiable resume evidence (technical coverage 50%, projects 30%, coursework 20%). Interview simulation metrics reflect response evaluations and practice drills. Practice sessions do not automatically alter resume readiness until corresponding competencies are verified in code.
+          </div>
         </div>
       </div>
 

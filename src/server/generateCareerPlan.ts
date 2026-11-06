@@ -7,35 +7,19 @@
  * and verified certification guidance without inventing false credentials.
  */
 
-import { GoogleGenAI } from '@google/genai';
 import {
   CareerPlanGenerationInput,
   RoadmapStage,
   RecommendedProject,
   RecommendedCertification,
 } from '../types/careerIntelligence.ts';
+import { generateContentWithFallback, GEMINI_GENERATION_MODELS } from './geminiConfig.ts';
 
 export async function generateCareerRoadmapPlan(input: CareerPlanGenerationInput): Promise<{
   roadmapStages: RoadmapStage[];
   recommendedProjects: RecommendedProject[];
   recommendedCertifications: RecommendedCertification[];
 }> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-    throw new Error(
-      'GEMINI_API_KEY is not configured on the server. Please ensure the Gemini API key is configured in Settings > Secrets.'
-    );
-  }
-
-  const ai = new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
 
   const prompt = `
 You are the ProFile Senior Career Architect & Engineering Mentor for university students.
@@ -47,9 +31,9 @@ Generate an actionable, realistic, personalized 6-stage learning roadmap and pro
 - Academic Year: "${input.academicYear}" (Graduation: "${input.graduationYear}")
 - Degree & Major: "${input.degree}" in "${input.major}" (${input.collegeOrUniversity || 'University'})
 - Available Time: ~${input.hoursPerWeek || 10} hours/week
-- Existing Technical Skills: ${input.existingSkills.technical.join(', ') || 'None provided'}
-- Existing Tools: ${input.existingSkills.tools?.join(', ') || 'None provided'}
-- Current Projects: ${input.projectsSummary.map((p) => `${p.title} (${p.techStack.join(', ')})`).join('; ') || 'None yet'}
+- Existing Technical Skills: ${input.existingSkills?.technical?.join(', ') || 'None provided'}
+- Existing Tools: ${input.existingSkills?.tools?.join(', ') || 'None provided'}
+- Current Projects: ${input.projectsSummary?.map((p) => `${p.title} (${p.techStack?.join(', ') || ''})`).join('; ') || 'None yet'}
 - Coursework: ${input.coursework?.join(', ') || 'Standard undergraduate engineering'}
 - Optional Job Description Context:
 ${input.jobDescriptionText ? `"""\n${input.jobDescriptionText.trim()}\n"""` : 'None. Evaluate based on standard tech industry hiring benchmarks for this role.'}
@@ -168,29 +152,46 @@ Respond with ONLY valid JSON matching this exact structure:
 }
 `;
 
-  const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
-  for (const modelName of candidateModels) {
-    try {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0.2,
-        },
-      });
+  try {
+    const { text } = await generateContentWithFallback({
+      contents: prompt,
+      responseMimeType: 'application/json',
+      temperature: 0.2,
+      models: GEMINI_GENERATION_MODELS,
+      operationName: 'Career Plan Generation',
+    });
 
-      const text = response.text || '';
-      if (text) {
-        const cleaned = text.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
-        const parsed = JSON.parse(cleaned);
-        if (parsed.roadmapStages && Array.isArray(parsed.roadmapStages)) {
-          return parsed;
-        }
-      }
-    } catch (error) {
-      console.warn(`[Career Plan] Model ${modelName} notice:`, error);
+    const cleaned = text.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+    const parsed = JSON.parse(cleaned);
+    if (parsed.roadmapStages && Array.isArray(parsed.roadmapStages)) {
+      const enrichedStages = parsed.roadmapStages.map((stage: RoadmapStage) => ({
+        ...stage,
+        tasks: (stage.tasks || []).map((t) => {
+          let category = t.practiceCategory;
+          if (!category) {
+            if (stage.id === 'foundation') category = 'dsa';
+            else if (stage.id === 'core-technical') category = 'technical-fundamentals';
+            else if (stage.id === 'tools-frameworks') category = 'database-sql';
+            else if (stage.id === 'practical-application') category = 'projects-experience';
+            else if (stage.id === 'portfolio') category = 'resume-focused';
+            else if (stage.id === 'interview-prep') category = 'mixed-comprehensive';
+          }
+          return {
+            ...t,
+            interviewTopics: t.interviewTopics && t.interviewTopics.length > 0
+              ? t.interviewTopics
+              : (t.suggestedTopics || []).slice(0, 3),
+            practiceCategory: category || 'technical-fundamentals',
+          };
+        }),
+      }));
+      return {
+        ...parsed,
+        roadmapStages: enrichedStages,
+      };
     }
+  } catch (error) {
+    console.warn('[Career Plan] AI generation fallback triggered:', error);
   }
 
   // Grounded fallback generation if remote AI models experience temporary demand spikes
@@ -490,8 +491,30 @@ function generateGroundedCareerPlanFallback(input: CareerPlanGenerationInput): {
     },
   ];
 
+  const enrichedStages = stages.map((stage) => ({
+    ...stage,
+    tasks: stage.tasks.map((t) => {
+      let category = t.practiceCategory;
+      if (!category) {
+        if (stage.id === 'foundation') category = 'dsa';
+        else if (stage.id === 'core-technical') category = 'technical-fundamentals';
+        else if (stage.id === 'tools-frameworks') category = 'database-sql';
+        else if (stage.id === 'practical-application') category = 'projects-experience';
+        else if (stage.id === 'portfolio') category = 'resume-focused';
+        else if (stage.id === 'interview-prep') category = 'mixed-comprehensive';
+      }
+      return {
+        ...t,
+        interviewTopics: t.interviewTopics && t.interviewTopics.length > 0
+          ? t.interviewTopics
+          : (t.suggestedTopics || []).slice(0, 3),
+        practiceCategory: category || 'technical-fundamentals',
+      };
+    }),
+  }));
+
   return {
-    roadmapStages: stages,
+    roadmapStages: enrichedStages,
     recommendedProjects: projects,
     recommendedCertifications: certs,
   };

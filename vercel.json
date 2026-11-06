@@ -1,0 +1,29 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "vite build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/health", "destination": "/api/health.ts" },
+    { "source": "/api/recommendations", "destination": "/api/recommendations.ts" },
+    { "source": "/api/assistant/content", "destination": "/api/assistant-content.ts" },
+    { "source": "/api/assistant/review", "destination": "/api/review.ts" },
+    { "source": "/api/career/generate-plan", "destination": "/api/career-plan.ts" },
+    { "source": "/api/career/assistant-chat", "destination": "/api/career-chat.ts" },
+    { "source": "/api/interview/generate-questions", "destination": "/api/interview-questions.ts" },
+    { "source": "/api/interview/evaluate-answer", "destination": "/api/interview-evaluate.ts" },
+    { "source": "/api/interview/coach-chat", "destination": "/api/interview-coach.ts" },
+    { "source": "/api/placement/generate-draft", "destination": "/api/application-draft.ts" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ]
+}

@@ -4,6 +4,7 @@
  */
 
 export { InterviewIntelligenceWorkspace } from './InterviewIntelligenceWorkspace.tsx';
+export type { InterviewNavContext, InterviewTab } from './InterviewIntelligenceWorkspace.tsx';
 export { MockInterviewRoom } from './components/MockInterviewRoom.tsx';
 export { InterviewDashboardOverview } from './components/InterviewDashboardOverview.tsx';
 export { ResumeQuestionsPanel } from './components/ResumeQuestionsPanel.tsx';

@@ -7,31 +7,15 @@
  * Enforces strict factual accuracy, student-level appropriateness, and anti-hallucination.
  */
 
-import { GoogleGenAI } from '@google/genai';
 import {
   ContentAssistantRequest,
   ContentAssistantResponse,
 } from '../types/assistant.ts';
+import { generateContentWithFallback, GEMINI_GENERATION_MODELS } from './geminiConfig.ts';
 
 export async function generateResumeContent(
   req: ContentAssistantRequest
 ): Promise<ContentAssistantResponse> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-    throw new Error(
-      'GEMINI_API_KEY is not configured on the server. Please ensure the Gemini API key is configured in Settings > Secrets.'
-    );
-  }
-
-  const ai = new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
 
   // Format current content for prompt
   let currentContentStr = '';
@@ -114,33 +98,53 @@ Respond with ONLY a valid, parseable JSON object matching this schema (no surrou
 }
 `.trim();
 
-  // Primary model: gemini-3.8-flash, with automatic fallback to gemini-3.1-flash-lite
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const { text: responseText, modelUsed } = await generateContentWithFallback({
       contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
+      responseMimeType: 'application/json',
+      models: GEMINI_GENERATION_MODELS,
+      operationName: 'Content Assistant',
     });
 
-    const parsed = parseResponse(response.text, req.action);
-    return parsed;
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    console.warn(`[ContentAssistant] gemini-3.8-flash attempt failed (${errorMsg}), retrying with gemini-3.1-flash-lite...`);
-
-    const fallbackResponse = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
-
-    const parsedFallback = parseResponse(fallbackResponse.text, req.action);
-    return parsedFallback;
+    const parsed = parseResponse(responseText, req.action);
+    return {
+      ...parsed,
+      isAiGenerated: true,
+      generationSource: 'gemini',
+      modelUsed,
+    };
+  } catch (error) {
+    console.warn('[Content Assistant] AI generation fallback triggered:', error);
+    return getDeterministicContentFallback(req);
   }
+}
+
+function getDeterministicContentFallback(req: ContentAssistantRequest): ContentAssistantResponse {
+  const currentStr = typeof req.currentContent === 'string'
+    ? req.currentContent
+    : Array.isArray(req.currentContent)
+    ? req.currentContent.join('. ')
+    : '';
+
+  const fallbackBullets = [
+    `Architected scalable solution for ${req.targetRole} using industry-standard engineering practices and modular architecture.`,
+    `Optimized performance and data processing workflows, achieving [improved efficiency by X%].`,
+    `Collaborated on testing, code reviews, and Git version control, supporting reliable software delivery.`
+  ];
+
+  return {
+    generatedText: currentStr
+      ? `Engineered robust solution aligned with ${req.targetRole} requirements: ${currentStr}`
+      : `Developed high-impact technical solution demonstrating proficiency in core technologies for ${req.targetRole}.`,
+    bulletPoints: fallbackBullets,
+    explanation: `Structured, action-verb driven bullets tailored for early-career ${req.targetRole} candidates.`,
+    placeholdersUsed: ['[improved efficiency by X%]'],
+    atsScoreImpactNote: `Incorporates action verbs and key competencies for ${req.targetRole}.`,
+    actionApplied: req.action,
+    recommendedHeading: req.section === 'projects' ? 'Technical Projects' : req.section === 'experience' ? 'Professional Experience' : 'Professional Summary',
+    isAiGenerated: false,
+    generationSource: 'structured-fallback',
+  };
 }
 
 function parseResponse(

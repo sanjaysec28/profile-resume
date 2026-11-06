@@ -6,31 +6,15 @@
  * Analyzes candidate answers against interview questions with rigorous, transparent criteria.
  */
 
-import { GoogleGenAI } from '@google/genai';
 import {
   AnswerEvaluationInput,
   EvaluatedAnswer,
 } from '../types/interviewIntelligence.ts';
+import { generateContentWithFallback, GEMINI_GENERATION_MODELS } from './geminiConfig.ts';
 
 export async function evaluateInterviewAnswer(
   input: AnswerEvaluationInput
 ): Promise<EvaluatedAnswer> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-    throw new Error(
-      'GEMINI_API_KEY is not configured on the server. Please ensure the Gemini API key is configured in Settings > Secrets.'
-    );
-  }
-
-  const ai = new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
 
   const question = input.question;
   const answer = (input.studentAnswer || '').trim();
@@ -103,39 +87,31 @@ ${rubric}
 }
 `;
 
-  const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  try {
+    const { text } = await generateContentWithFallback({
+      contents: prompt,
+      responseMimeType: 'application/json',
+      temperature: 0.2,
+      models: GEMINI_GENERATION_MODELS,
+      operationName: 'Interview Answer Evaluation',
+    });
 
-  for (const modelName of candidateModels) {
-    try {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0.2,
-        },
-      });
-
-      const text = response.text || '';
-      if (text) {
-        const cleaned = text.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
-        const parsed = JSON.parse(cleaned);
-        return {
-          questionId: question.id,
-          studentAnswer: answer,
-          answerMode: input.answerMode,
-          score: typeof parsed.score === 'number' ? Math.min(Math.max(parsed.score, 0), 100) : 65,
-          whatWasDoneWell: Array.isArray(parsed.whatWasDoneWell) ? parsed.whatWasDoneWell : ['Demonstrated basic familiarity with the topic.'],
-          whatWasMissing: Array.isArray(parsed.whatWasMissing) ? parsed.whatWasMissing : ['Could provide deeper architectural context.'],
-          improvementSuggestions: Array.isArray(parsed.improvementSuggestions) ? parsed.improvementSuggestions : ['Practice articulating edge cases clearly.'],
-          exampleStrongerAnswer: parsed.exampleStrongerAnswer || 'A structured response starts with a clear definition, followed by trade-off analysis and practical usage.',
-          relatedTopicsToRevise: Array.isArray(parsed.relatedTopicsToRevise) ? parsed.relatedTopicsToRevise : [question.topic],
-          evaluatedAt: new Date().toISOString(),
-        };
-      }
-    } catch (error) {
-      console.warn(`[Answer Evaluation] Model ${modelName} warning:`, error);
-    }
+    const cleaned = text.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+    const parsed = JSON.parse(cleaned);
+    return {
+      questionId: question.id,
+      studentAnswer: answer,
+      answerMode: input.answerMode,
+      score: typeof parsed.score === 'number' ? Math.min(Math.max(parsed.score, 0), 100) : 65,
+      whatWasDoneWell: Array.isArray(parsed.whatWasDoneWell) ? parsed.whatWasDoneWell : ['Demonstrated basic familiarity with the topic.'],
+      whatWasMissing: Array.isArray(parsed.whatWasMissing) ? parsed.whatWasMissing : ['Could provide deeper architectural context.'],
+      improvementSuggestions: Array.isArray(parsed.improvementSuggestions) ? parsed.improvementSuggestions : ['Practice articulating edge cases clearly.'],
+      exampleStrongerAnswer: parsed.exampleStrongerAnswer || 'A structured response starts with a clear definition, followed by trade-off analysis and practical usage.',
+      relatedTopicsToRevise: Array.isArray(parsed.relatedTopicsToRevise) ? parsed.relatedTopicsToRevise : [question.topic],
+      evaluatedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.warn('[Answer Evaluation] AI evaluation fallback triggered:', error);
   }
 
   // Grounded heuristic evaluation if remote models have temporary outage

@@ -6,36 +6,29 @@
  * Provides grounded, practical career guidance without promising unrealistic outcomes.
  */
 
-import { GoogleGenAI } from '@google/genai';
 import { CareerPlan, CareerChatMessage } from '../types/careerIntelligence.ts';
+import { generateContentWithFallback, GEMINI_GENERATION_MODELS } from './geminiConfig.ts';
 
 export interface CareerChatInput {
   question: string;
   history: CareerChatMessage[];
   careerPlan: Partial<CareerPlan>;
+  interviewMetrics?: {
+    totalSessionsCompleted: number;
+    averageMockScore: number;
+    technicalReadinessPercent: number;
+    hrReadinessPercent: number;
+    dsaTopicsCompletedCount: number;
+    dsaTotalTopics: number;
+  } | null;
 }
 
 export async function answerCareerQuestion(input: CareerChatInput): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-    throw new Error(
-      'GEMINI_API_KEY is not configured on the server. Please ensure the Gemini API key is configured in Settings > Secrets.'
-    );
-  }
-
-  const ai = new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
 
   const plan = input.careerPlan || {};
   const readiness = plan.readiness;
   const targetRole = plan.targetRole || 'Software Engineer';
+  const im = input.interviewMetrics;
 
   const systemContext = `
 You are the ProFile AI Career Assistant — a wise, pragmatic, supportive senior technical career mentor for college students and freshers.
@@ -49,13 +42,19 @@ Your mission is to provide clear, actionable, student-friendly engineering guida
 - Key Strengths: ${(readiness?.strengths || []).slice(0, 3).join('; ') || 'Foundational programming'}
 - Missing Competencies: ${(readiness?.missingCompetencies || []).slice(0, 4).join('; ') || 'Advanced frameworks'}
 - Priority Next Actions: ${(readiness?.priorityImprovements || []).join('; ') || 'Deepen project depth'}
+- Interview Preparation Status: ${
+    im
+      ? `${im.totalSessionsCompleted} mock sessions attempted (avg score: ${im.averageMockScore > 0 ? `${im.averageMockScore}/100` : 'None evaluated yet'}), ${im.dsaTopicsCompletedCount}/${im.dsaTotalTopics} DSA topics finished, ${im.technicalReadinessPercent}% technical interview readiness, ${im.hrReadinessPercent}% HR readiness.`
+      : 'No interview practice sessions attempted yet.'
+  }
 
 ### STRICT GUIDELINES:
 1. Always be grounded in the student's actual target role and existing competencies.
 2. Provide concrete, step-by-step technical advice (e.g., recommend specific libraries, DSA patterns, GitHub practices, or architectural concepts).
-3. Keep tone encouraging, professional, and clear. Use bullet points for readability.
-4. ABSOLUTE RULE: NEVER guarantee job offers, placement packages, compensation numbers, or internship outcomes. Emphasize continuous skill development and solid engineering portfolios.
-5. Answer concisely (2 to 4 focused paragraphs or structured bullet lists).
+3. Connect roadmap milestones directly with interview preparation topics when guiding the student.
+4. Keep tone encouraging, professional, and clear. Use bullet points for readability.
+5. ABSOLUTE RULE: NEVER guarantee job offers, placement packages, compensation numbers, or internship outcomes. Emphasize continuous skill development and solid engineering portfolios.
+6. Answer concisely (2 to 4 focused paragraphs or structured bullet lists).
 `;
 
   // Build message history
@@ -71,23 +70,19 @@ Your mission is to provide clear, actionable, student-friendly engineering guida
     },
   ];
 
-  const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
-  for (const modelName of candidateModels) {
-    try {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents,
-        config: {
-          temperature: 0.4,
-        },
-      });
+  try {
+    const { text } = await generateContentWithFallback({
+      contents,
+      temperature: 0.4,
+      models: GEMINI_GENERATION_MODELS,
+      operationName: 'Career Assistant Chat',
+    });
 
-      if (response.text && response.text.trim().length > 0) {
-        return response.text;
-      }
-    } catch (error) {
-      console.warn(`[Career Chat] Model ${modelName} warning:`, error);
+    if (text && text.trim().length > 0) {
+      return text;
     }
+  } catch (error) {
+    console.warn('[Career Chat] AI chat fallback triggered:', error);
   }
 
   // Graceful, context-grounded fallback if all remote model endpoints encounter temporary spikes

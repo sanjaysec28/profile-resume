@@ -40,7 +40,8 @@ export interface VerifiedJobOpportunity {
 export type EligibilityStatus =
   | 'appears-eligible'
   | 'potentially-eligible'
-  | 'likely-not-eligible';
+  | 'likely-not-eligible'
+  | 'eligibility-unknown';
 
 export interface EligibilityCriterion {
   field: string; // e.g. "Degree & Major", "Graduation Year", "CGPA / Academic Score", "Experience"
@@ -100,8 +101,12 @@ export interface ApplicationRecord {
   appliedDate?: string;
   deadline?: string;
   status: ApplicationStatus;
+  matchScore?: number;
+  eligibilityStatus?: EligibilityStatus;
+  eligibilitySummary?: string;
   resumeVersionUsed?: string;
   coverLetterSnippet?: string;
+  coverLetterDraftId?: string;
   notes?: string;
   nextFollowUpDate?: string;
   interviewDate?: string;
@@ -122,6 +127,8 @@ export interface ApplicationDraft {
   }[];
   tailoredCoverLetter?: string;
   recruiterOutreachMessage?: string;
+  applicationEmailSubject?: string;
+  applicationEmailBody?: string;
   commonQuestionsAnswers?: {
     question: string;
     suggestedAnswer: string;
@@ -129,12 +136,16 @@ export interface ApplicationDraft {
   missingInformationNoticed: string[];
   generatedAt: string;
   isApprovedByStudent: boolean;
+  isAiGenerated?: boolean;
+  generationSource?: 'gemini' | 'structured-fallback';
 }
 
 export interface PlacementAnalytics {
   totalOpportunitiesSaved: number;
   totalApplications: number;
+  applicationsSubmittedCount: number; // applied, assessment, interview, offer, rejected
   activeApplicationsCount: number; // preparing, applied, assessment, interview
+  assessmentsScheduledCount: number;
   interviewsScheduledCount: number;
   offersReceivedCount: number;
   rejectedCount: number;
@@ -142,6 +153,7 @@ export interface PlacementAnalytics {
   statusDistribution: Record<ApplicationStatus, number>;
   upcomingFollowUps: ApplicationRecord[];
   upcomingInterviews: ApplicationRecord[];
+  upcomingDeadlines: ApplicationRecord[];
 }
 
 export interface JobSearchFilters {
@@ -153,4 +165,24 @@ export interface JobSearchFilters {
   location: string;
   hasPublishedSalary: boolean;
   minMatchScore?: number;
+}
+
+export interface PlacementStudentContext {
+  targetRole: string;
+  degree: string;
+  major: string;
+  academicYear: string;
+  graduationYear: string;
+  cgpaOrScore?: string;
+  technicalSkills: string[];
+  softSkills: string[];
+  projects: {
+    title: string;
+    techStack: string[];
+    description: string;
+    bullets?: string[];
+  }[];
+  experienceCount: number;
+  certifications?: string[];
+  coursework?: string[];
 }

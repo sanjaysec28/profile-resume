@@ -21,6 +21,8 @@ import { evaluateInterviewAnswer } from './src/server/evaluateInterviewAnswer.ts
 import { chatWithInterviewCoach } from './src/server/interviewCoachChat.ts';
 import { generateApplicationDraft } from './src/server/generateApplicationDraft.ts';
 
+import { getGeminiClient } from './src/server/geminiConfig.ts';
+
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -44,6 +46,35 @@ async function startServer() {
       hasGeminiKey: hasKey,
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // Targeted model audit endpoint for Phase D.2.2 (tests each model independently without fallback)
+  app.get('/api/audit/test-model', async (req: Request, res: Response) => {
+    const model = (req.query.model as string) || 'gemini-3.8-flash';
+    const start = Date.now();
+    try {
+      const ai = getGeminiClient();
+      const response = await ai.models.generateContent({
+        model,
+        contents: 'Reply with the single word: "AVAILABLE"',
+      });
+      return res.json({
+        model,
+        status: 'AVAILABLE',
+        httpStatus: 200,
+        latencyMs: Date.now() - start,
+        text: (response.text || '').trim(),
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return res.status(502).json({
+        model,
+        status: 'ERROR',
+        httpStatus: 502,
+        latencyMs: Date.now() - start,
+        error: msg,
+      });
+    }
   });
 
   // Secure AI Resume Recommendations endpoint (Phase 2)

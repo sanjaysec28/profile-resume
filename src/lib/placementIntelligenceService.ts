@@ -372,23 +372,40 @@ export function calculatePlacementAnalytics(
     statusDistribution.assessment +
     statusDistribution.interview;
 
+  const submittedCount =
+    statusDistribution.applied +
+    statusDistribution.assessment +
+    statusDistribution.interview +
+    statusDistribution.offer +
+    statusDistribution.rejected;
+
   const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
   const upcomingFollowUps = applications.filter((a) => {
     if (!a.nextFollowUpDate) return false;
     const d = new Date(a.nextFollowUpDate);
-    return !isNaN(d.getTime()) && d >= new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return !isNaN(d.getTime()) && d >= today;
   });
 
   const upcomingInterviews = applications.filter((a) => {
     if (!a.interviewDate) return false;
     const d = new Date(a.interviewDate);
-    return !isNaN(d.getTime()) && d >= new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return !isNaN(d.getTime()) && d >= today;
+  });
+
+  const upcomingDeadlines = applications.filter((a) => {
+    if (!a.deadline) return false;
+    const d = new Date(a.deadline);
+    return !isNaN(d.getTime()) && d >= today;
   });
 
   return {
     totalOpportunitiesSaved: savedJobs.length,
     totalApplications: applications.length,
+    applicationsSubmittedCount: submittedCount,
     activeApplicationsCount: activeCount,
+    assessmentsScheduledCount: statusDistribution.assessment,
     interviewsScheduledCount: statusDistribution.interview,
     offersReceivedCount: statusDistribution.offer,
     rejectedCount: statusDistribution.rejected,
@@ -399,6 +416,9 @@ export function calculatePlacementAnalytics(
     ),
     upcomingInterviews: upcomingInterviews.sort(
       (a, b) => new Date(a.interviewDate!).getTime() - new Date(b.interviewDate!).getTime()
+    ),
+    upcomingDeadlines: upcomingDeadlines.sort(
+      (a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime()
     ),
   };
 }

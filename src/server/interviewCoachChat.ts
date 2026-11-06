@@ -6,8 +6,8 @@
  * Interactive chat assistant focused on technical drills, HR rehearsal, and answer breakdowns.
  */
 
-import { GoogleGenAI } from '@google/genai';
 import { InterviewCoachMessage } from '../types/interviewIntelligence.ts';
+import { generateContentWithFallback, GEMINI_GENERATION_MODELS } from './geminiConfig.ts';
 
 export interface InterviewCoachInput {
   message: string;
@@ -24,22 +24,6 @@ export interface InterviewCoachInput {
 }
 
 export async function chatWithInterviewCoach(input: InterviewCoachInput): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-    throw new Error(
-      'GEMINI_API_KEY is not configured on the server. Please ensure the Gemini API key is configured in Settings > Secrets.'
-    );
-  }
-
-  const ai = new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
 
   const ctx = input.context || {};
   const targetRole = ctx.targetRole || 'Software Engineer';
@@ -70,24 +54,19 @@ Your role is to help students, freshers, and early-career candidates prepare for
     },
   ];
 
-  const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  try {
+    const { text } = await generateContentWithFallback({
+      contents,
+      temperature: 0.4,
+      models: GEMINI_GENERATION_MODELS,
+      operationName: 'Interview Coach Chat',
+    });
 
-  for (const modelName of candidateModels) {
-    try {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents,
-        config: {
-          temperature: 0.4,
-        },
-      });
-
-      if (response.text && response.text.trim().length > 0) {
-        return response.text;
-      }
-    } catch (error) {
-      console.warn(`[Interview Coach] Model ${modelName} warning:`, error);
+    if (text && text.trim().length > 0) {
+      return text;
     }
+  } catch (error) {
+    console.warn('[Interview Coach] AI coach fallback triggered:', error);
   }
 
   // Grounded fallback response if AI endpoints have temporary spikes

@@ -19,7 +19,15 @@ import {
   RoadmapStageId,
   SkillStatus,
   SkillGapItem,
+  SkillCategory,
 } from '../../types/careerIntelligence.ts';
+import { InterviewDashboardMetrics } from '../../types/interviewIntelligence.ts';
+import {
+  loadInterviewSessions,
+  loadDsaTopics,
+  loadHrQuestions,
+  computeDashboardMetrics,
+} from '../../lib/interviewIntelligenceService.ts';
 import {
   getSavedCareerPlan,
   generateNewCareerPlan,
@@ -36,8 +44,6 @@ import { RoadmapStageView } from './components/RoadmapStageView.tsx';
 import { ProjectRecommendationCard } from './components/ProjectRecommendationCard.tsx';
 import { CertificationCard } from './components/CertificationCard.tsx';
 import { CareerAiAssistantPanel } from './components/CareerAiAssistantPanel.tsx';
-import { Navbar } from '../../components/layout/Navbar.tsx';
-import { SocialFooter } from '../../components/layout/SocialFooter.tsx';
 import {
   Compass,
   RefreshCw,
@@ -59,6 +65,7 @@ interface CareerIntelligenceWorkspaceProps {
   resumeData: ResumeData;
   resumeSetup?: ResumeSetupData | null;
   onNavigate: (view: AppView) => void;
+  onNavigateToInterview?: (context?: { tab?: string; category?: string; topic?: string; targetedSkillGaps?: string[] }) => void;
   onSignOut?: () => void;
 }
 
@@ -68,6 +75,7 @@ export function CareerIntelligenceWorkspace({
   resumeData,
   resumeSetup,
   onNavigate,
+  onNavigateToInterview,
   onSignOut,
 }: CareerIntelligenceWorkspaceProps) {
   const targetRole =
@@ -77,6 +85,7 @@ export function CareerIntelligenceWorkspace({
     'Full Stack Engineer';
 
   const [careerPlan, setCareerPlan] = useState<CareerPlan | null>(null);
+  const [interviewMetrics, setInterviewMetrics] = useState<InterviewDashboardMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
@@ -88,6 +97,28 @@ export function CareerIntelligenceWorkspace({
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
+  // Load interview metrics to connect simulation progress with career readiness
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([
+      loadInterviewSessions(user?.uid),
+      loadDsaTopics(user?.uid),
+      loadHrQuestions(user?.uid),
+    ])
+      .then(([savedSessions, savedDsa, savedHr]) => {
+        if (!isMounted) return;
+        const metrics = computeDashboardMetrics(savedSessions, savedDsa, savedHr, targetRole);
+        setInterviewMetrics(metrics);
+      })
+      .catch((err) => {
+        console.warn('Failed to load interview metrics for career workspace:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.uid, targetRole]);
 
   // Load existing plan or generate initial plan
   useEffect(() => {
@@ -210,6 +241,53 @@ export function CareerIntelligenceWorkspace({
     showToast(`Updated learning status for ${skillName}`);
   };
 
+  // Handle practicing a specific skill gap in Interview Hub
+  const handlePracticeSkillGap = (skillName: string, category: SkillCategory) => {
+    let tab = 'mock';
+    let mockCategory = 'technical-fundamentals';
+    const catStr = category as string;
+    const nameLower = skillName.toLowerCase();
+
+    if (
+      category === 'core-cs' ||
+      catStr === 'dsa' ||
+      nameLower.includes('dsa') ||
+      nameLower.includes('algorithm') ||
+      nameLower.includes('data structure')
+    ) {
+      tab = 'dsa';
+      mockCategory = 'dsa';
+    } else if (category === 'soft-skills') {
+      tab = 'hr';
+      mockCategory = 'behavioral-hr';
+    } else if (
+      category === 'system-design' ||
+      nameLower.includes('system design') ||
+      nameLower.includes('architecture')
+    ) {
+      tab = 'mock';
+      mockCategory = 'system-design';
+    } else if (
+      category === 'databases-storage' ||
+      nameLower.includes('sql') ||
+      nameLower.includes('database')
+    ) {
+      tab = 'mock';
+      mockCategory = 'database-sql';
+    }
+
+    if (onNavigateToInterview) {
+      onNavigateToInterview({
+        tab,
+        category: mockCategory,
+        topic: skillName,
+        targetedSkillGaps: [skillName],
+      });
+    } else {
+      onNavigate('interview-prep');
+    }
+  };
+
   const allTasks = careerPlan?.roadmapStages.flatMap((s) => s.tasks) || [];
   const completedTasksCount = allTasks.filter((t) => t.status === 'completed').length;
   const plannedProjectsCount = (careerPlan?.recommendedProjects || []).filter(
@@ -217,20 +295,8 @@ export function CareerIntelligenceWorkspace({
   ).length;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8F5EE] text-[#101010]">
-      {/* Floating Pill Navbar */}
-      <Navbar
-        currentView="career-intelligence"
-        onNavigate={onNavigate}
-        userAvatar={profile.avatar}
-        userName={profile.fullName}
-        onSignOut={onSignOut}
-      />
-
-      {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
-        
-        {/* Top Header Breadcrumb & Actions */}
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 select-none">
+      {/* Top Header Breadcrumb & Actions */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button
@@ -243,8 +309,8 @@ export function CareerIntelligenceWorkspace({
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#8C6D1F] bg-[#FAF5EC] border border-[#E8DEC8] px-2.5 py-0.5 rounded-full">
-                  Phase 5 Intelligence
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#8C6D1F] bg-[#FAF5EC] border border-[#E8DEC8] px-2 py-0.5 rounded-md">
+                  Roadmap Engine
                 </span>
                 <span className="text-xs text-[#777777]">
                   Personalized Roadmap
@@ -457,6 +523,10 @@ export function CareerIntelligenceWorkspace({
                   graduationYear={careerPlan.graduationYear}
                   degree={careerPlan.degree}
                   major={careerPlan.major}
+                  interviewMetrics={interviewMetrics}
+                  onNavigateToInterview={() =>
+                    onNavigateToInterview ? onNavigateToInterview() : onNavigate('interview-prep')
+                  }
                 />
 
                 {/* Quick Transition to Roadmap */}
@@ -484,6 +554,7 @@ export function CareerIntelligenceWorkspace({
               <SkillGapMatrix
                 skillGaps={careerPlan.skillGaps}
                 onToggleLearning={handleToggleLearningSkill}
+                onPracticeSkillGap={handlePracticeSkillGap}
               />
             )}
 
@@ -494,6 +565,9 @@ export function CareerIntelligenceWorkspace({
                 onUpdateTaskStatus={handleUpdateTask}
                 onAddTask={handleAddCustomTask}
                 onDeleteTask={handleDeleteTask}
+                onNavigateToInterviewPrep={(ctx) =>
+                  onNavigateToInterview ? onNavigateToInterview(ctx) : onNavigate('interview-prep')
+                }
               />
             )}
 
@@ -555,15 +629,13 @@ export function CareerIntelligenceWorkspace({
 
             {/* TAB 6: AI CAREER ASSISTANT */}
             {activeTab === 'chat' && (
-              <CareerAiAssistantPanel careerPlan={careerPlan} />
+              <CareerAiAssistantPanel
+                careerPlan={careerPlan}
+                interviewMetrics={interviewMetrics}
+              />
             )}
           </div>
         ) : null}
-
-      </main>
-
-      {/* Social Footer */}
-      <SocialFooter className="py-6 mt-8" />
 
       {/* Subtle Toast */}
       {toastMessage && (

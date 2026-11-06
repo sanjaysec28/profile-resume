@@ -6,32 +6,16 @@
  * Generates role-specific, student-tailored interview questions using Gemini models.
  */
 
-import { GoogleGenAI } from '@google/genai';
 import {
   InterviewQuestion,
   QuestionGenerationInput,
 } from '../types/interviewIntelligence.ts';
 import { FALLBACK_QUESTIONS_BY_CATEGORY } from '../lib/interviewPrepData.ts';
+import { generateContentWithFallback, GEMINI_GENERATION_MODELS } from './geminiConfig.ts';
 
 export async function generateInterviewQuestions(
   input: QuestionGenerationInput
 ): Promise<InterviewQuestion[]> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-    throw new Error(
-      'GEMINI_API_KEY is not configured on the server. Please ensure the Gemini API key is configured in Settings > Secrets.'
-    );
-  }
-
-  const ai = new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
 
   const isResumeFocused = input.category === 'resume-focused' || input.category === 'projects-experience';
   const role = input.targetRole || 'Software Engineer';
@@ -88,41 +72,33 @@ Return a valid JSON object matching:
 }
 `;
 
-  const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  try {
+    const { text } = await generateContentWithFallback({
+      contents: prompt,
+      responseMimeType: 'application/json',
+      temperature: 0.3,
+      models: GEMINI_GENERATION_MODELS,
+      operationName: 'Interview Question Generation',
+    });
 
-  for (const modelName of candidateModels) {
-    try {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0.3,
-        },
-      });
-
-      const text = response.text || '';
-      if (text) {
-        const cleaned = text.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
-        const parsed = JSON.parse(cleaned);
-        if (parsed.questions && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-          return parsed.questions.map((q: any, idx: number) => ({
-            id: q.id || `q_gen_${Date.now()}_${idx}`,
-            question: q.question,
-            category: q.category || input.category,
-            difficulty: q.difficulty || input.difficulty,
-            whyAsked: q.whyAsked || 'Evaluates role readiness and conceptual clarity.',
-            topic: q.topic || 'Core Engineering',
-            hints: Array.isArray(q.hints) ? q.hints : ['Think about basic principles and real-world usage.'],
-            evaluationCriteria: Array.isArray(q.evaluationCriteria) ? q.evaluationCriteria : ['Accuracy', 'Clarity'],
-            isResumeDerived: Boolean(q.isResumeDerived),
-            resumeAnchor: q.resumeAnchor || undefined,
-          }));
-        }
-      }
-    } catch (error) {
-      console.warn(`[Interview Questions] Model ${modelName} warning:`, error);
+    const cleaned = text.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+    const parsed = JSON.parse(cleaned);
+    if (parsed.questions && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+      return parsed.questions.map((q: any, idx: number) => ({
+        id: q.id || `q_gen_${Date.now()}_${idx}`,
+        question: q.question,
+        category: q.category || input.category,
+        difficulty: q.difficulty || input.difficulty,
+        whyAsked: q.whyAsked || 'Evaluates role readiness and conceptual clarity.',
+        topic: q.topic || 'Core Engineering',
+        hints: Array.isArray(q.hints) ? q.hints : ['Think about basic principles and real-world usage.'],
+        evaluationCriteria: Array.isArray(q.evaluationCriteria) ? q.evaluationCriteria : ['Accuracy', 'Clarity'],
+        isResumeDerived: Boolean(q.isResumeDerived),
+        resumeAnchor: q.resumeAnchor || undefined,
+      }));
     }
+  } catch (error) {
+    console.warn('[Interview Questions] AI generation fallback triggered:', error);
   }
 
   // Graceful fallback to rich curated question bank if remote AI experiences demand spikes

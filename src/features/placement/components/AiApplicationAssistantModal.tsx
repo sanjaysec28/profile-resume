@@ -67,7 +67,8 @@ export const AiApplicationAssistantModal: React.FC<AiApplicationAssistantModalPr
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const [isApproved, setIsApproved] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'cover-letter' | 'outreach' | 'qa' | 'projects'>('cover-letter');
+  const [activeTab, setActiveTab] = useState<'cover-letter' | 'email' | 'outreach' | 'qa' | 'projects'>('cover-letter');
+  const [isEditing, setIsEditing] = useState<boolean>(false);
 
   useEffect(() => {
     async function initDraft() {
@@ -147,7 +148,8 @@ export const AiApplicationAssistantModal: React.FC<AiApplicationAssistantModalPr
         <div className="px-5 sm:px-6 pt-3 border-b border-[#E8E2D7] bg-white flex items-center gap-2 overflow-x-auto scrollbar-none">
           {[
             { id: 'cover-letter', label: 'Tailored Cover Letter', icon: FileText },
-            { id: 'outreach', label: 'Recruiter Outreach', icon: Mail },
+            { id: 'email', label: 'Application Email', icon: Mail },
+            { id: 'outreach', label: 'Recruiter Outreach', icon: Send },
             { id: 'qa', label: 'Application Q&A', icon: HelpCircle },
             { id: 'projects', label: 'Highlighted Projects', icon: Layers },
           ].map((t) => {
@@ -181,7 +183,7 @@ export const AiApplicationAssistantModal: React.FC<AiApplicationAssistantModalPr
             <>
               {/* Approval status banner */}
               <div
-                className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+                className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
                   isApproved
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
                     : 'bg-amber-50 border-amber-200 text-amber-900'
@@ -195,19 +197,28 @@ export const AiApplicationAssistantModal: React.FC<AiApplicationAssistantModalPr
                   )}
                   <span>
                     {isApproved
-                      ? 'Approved draft saved to your pipeline.'
-                      : 'Review draft carefully. Nothing is applied or submitted until you confirm.'}
+                      ? 'Approved draft saved to your pipeline. You can review or edit anytime.'
+                      : 'Review draft and edit any wording below. You must approve before saving.'}
                   </span>
                 </div>
 
-                {!isApproved && (
+                <div className="flex items-center gap-2 shrink-0">
                   <button
-                    onClick={handleApproveDraft}
-                    className="px-3 py-1 bg-[#101010] text-[#F8F5EE] rounded-lg text-xs font-semibold hover:bg-[#262626] cursor-pointer whitespace-nowrap"
+                    type="button"
+                    onClick={() => setIsEditing(!isEditing)}
+                    className="px-3 py-1 bg-white border border-[#E5E0D8] text-[#101010] rounded-lg text-xs font-semibold hover:bg-stone-50 cursor-pointer"
                   >
-                    Approve Draft
+                    {isEditing ? 'Done Editing' : 'Edit Text'}
                   </button>
-                )}
+
+                  <button
+                    type="button"
+                    onClick={handleApproveDraft}
+                    className="px-3.5 py-1 bg-[#101010] text-[#F8F5EE] rounded-lg text-xs font-semibold hover:bg-[#262626] cursor-pointer whitespace-nowrap"
+                  >
+                    {isApproved ? 'Update Approved Draft' : 'Approve & Save Draft'}
+                  </button>
+                </div>
               </div>
 
               {/* TAB 1: COVER LETTER */}
@@ -218,6 +229,7 @@ export const AiApplicationAssistantModal: React.FC<AiApplicationAssistantModalPr
                       Tailored Cover Letter
                     </span>
                     <button
+                      type="button"
                       onClick={() => handleCopy('cover', draft.tailoredCoverLetter || '')}
                       className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FAF9F5] border border-[#E5E0D8] rounded-lg text-xs font-semibold text-[#101010] hover:bg-[#EAE5DC] cursor-pointer"
                     >
@@ -226,20 +238,94 @@ export const AiApplicationAssistantModal: React.FC<AiApplicationAssistantModalPr
                     </button>
                   </div>
 
-                  <div className="p-5 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl text-xs sm:text-sm text-[#222222] whitespace-pre-line leading-relaxed font-serif">
-                    {draft.tailoredCoverLetter}
+                  {isEditing ? (
+                    <textarea
+                      value={draft.tailoredCoverLetter || ''}
+                      onChange={(e) => setDraft({ ...draft, tailoredCoverLetter: e.target.value })}
+                      className="w-full p-4 bg-white border border-[#E5E0D8] rounded-xl text-xs sm:text-sm font-serif leading-relaxed focus:outline-none focus:border-[#101010] min-h-[260px]"
+                      rows={12}
+                      placeholder="Type or paste customized cover letter..."
+                    />
+                  ) : (
+                    <div className="p-5 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl text-xs sm:text-sm text-[#222222] whitespace-pre-line leading-relaxed font-serif">
+                      {draft.tailoredCoverLetter}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 2: APPLICATION EMAIL */}
+              {activeTab === 'email' && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#666666]">
+                      Application Email (Direct to Recruiter / Careers Inbox)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleCopy(
+                          'email',
+                          `Subject: ${draft.applicationEmailSubject || ''}\n\n${draft.applicationEmailBody || ''}`
+                        )
+                      }
+                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FAF9F5] border border-[#E5E0D8] rounded-lg text-xs font-semibold text-[#101010] hover:bg-[#EAE5DC] cursor-pointer"
+                    >
+                      {copiedSection === 'email' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedSection === 'email' ? 'Copied' : 'Copy Full Email'}</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#666666] mb-1">
+                        Subject Line
+                      </label>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={draft.applicationEmailSubject || ''}
+                          onChange={(e) => setDraft({ ...draft, applicationEmailSubject: e.target.value })}
+                          className="w-full px-3.5 py-2 bg-white border border-[#E5E0D8] rounded-xl text-xs sm:text-sm text-[#101010] font-medium focus:outline-none focus:border-[#101010]"
+                        />
+                      ) : (
+                        <div className="p-3 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl text-xs sm:text-sm font-semibold text-[#101010]">
+                          {draft.applicationEmailSubject || `Application: ${job.title} — ${studentContext.studentName || 'Student'}`}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#666666] mb-1">
+                        Email Body
+                      </label>
+                      {isEditing ? (
+                        <textarea
+                          value={draft.applicationEmailBody || ''}
+                          onChange={(e) => setDraft({ ...draft, applicationEmailBody: e.target.value })}
+                          className="w-full p-4 bg-white border border-[#E5E0D8] rounded-xl text-xs sm:text-sm leading-relaxed focus:outline-none focus:border-[#101010] min-h-[200px]"
+                          rows={8}
+                        />
+                      ) : (
+                        <div className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl text-xs sm:text-sm text-[#222222] whitespace-pre-line leading-relaxed">
+                          {draft.applicationEmailBody ||
+                            `Dear Hiring Team at ${job.company},\n\nI am writing to submit my application for the ${job.title} position. Attached please find my resume detailing my projects and coursework.\n\nThank you for your consideration.\n\nSincerely,\n${studentContext.studentName || 'Student'}`}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* TAB 2: RECRUITER OUTREACH */}
+              {/* TAB 3: RECRUITER OUTREACH */}
               {activeTab === 'outreach' && (
                 <div className="space-y-4 animate-fadeIn">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold uppercase tracking-wider text-[#666666]">
-                      LinkedIn / Email Outreach Note
+                      LinkedIn / InMail Outreach Note
                     </span>
                     <button
+                      type="button"
                       onClick={() => handleCopy('outreach', draft.recruiterOutreachMessage || '')}
                       className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FAF9F5] border border-[#E5E0D8] rounded-lg text-xs font-semibold text-[#101010] hover:bg-[#EAE5DC] cursor-pointer"
                     >
@@ -248,9 +334,18 @@ export const AiApplicationAssistantModal: React.FC<AiApplicationAssistantModalPr
                     </button>
                   </div>
 
-                  <div className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl text-xs sm:text-sm text-[#222222] whitespace-pre-line leading-relaxed">
-                    {draft.recruiterOutreachMessage}
-                  </div>
+                  {isEditing ? (
+                    <textarea
+                      value={draft.recruiterOutreachMessage || ''}
+                      onChange={(e) => setDraft({ ...draft, recruiterOutreachMessage: e.target.value })}
+                      className="w-full p-4 bg-white border border-[#E5E0D8] rounded-xl text-xs sm:text-sm leading-relaxed focus:outline-none focus:border-[#101010] min-h-[140px]"
+                      rows={5}
+                    />
+                  ) : (
+                    <div className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl text-xs sm:text-sm text-[#222222] whitespace-pre-line leading-relaxed">
+                      {draft.recruiterOutreachMessage}
+                    </div>
+                  )}
                 </div>
               )}
 

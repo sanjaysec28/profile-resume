@@ -8,26 +8,10 @@
  * and formulates actionable, verifiable suggestions without inventing false facts.
  */
 
-import { GoogleGenAI } from '@google/genai';
 import { ReviewGenerationInput } from '../types/resumeReview.ts';
+import { generateContentWithFallback, GEMINI_REVIEW_MODELS } from './geminiConfig.ts';
 
 export async function generateResumeReview(input: ReviewGenerationInput) {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-    throw new Error(
-      'GEMINI_API_KEY is not configured on the server. Please ensure the Gemini API key is configured in Settings > Secrets.'
-    );
-  }
-
-  const ai = new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
 
   const hasJd = Boolean(input.jobDescriptionText && input.jobDescriptionText.trim().length > 30);
   const data = input.resumeData || {};
@@ -148,29 +132,144 @@ Respond with ONLY a valid, parseable JSON object matching this structure (no sur
 `.trim();
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const { text: responseText } = await generateContentWithFallback({
       contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
+      responseMimeType: 'application/json',
+      models: GEMINI_REVIEW_MODELS,
+      operationName: 'Resume Quality Review',
     });
 
-    return parseReviewResponse(response.text);
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    console.warn(`[ResumeReview] gemini-3.8-flash failed (${errorMsg}), retrying with gemini-3.1-flash-lite...`);
+    const parsed = parseReviewResponse(responseText);
 
-    const fallbackResponse = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
+    // Ground-truth consistency guard: Ensure verified resume sections are accurately represented
+    const rawExp = Array.isArray(data.experience)
+      ? data.experience
+      : (Array.isArray(data.experiences) ? data.experiences : []);
+    const rawTech = Array.isArray(data.skills?.technical) ? data.skills.technical : [];
+    const rawSoft = Array.isArray(data.skills?.soft) ? data.skills.soft : [];
+    const rawTools = Array.isArray(data.skills?.tools) ? data.skills.tools : [];
+    const rawHasSkills = Boolean(rawTech.length > 0 || rawSoft.length > 0 || rawTools.length > 0 || data.skills?.languages?.length);
 
-    return parseReviewResponse(fallbackResponse.text);
+    if (parsed.completeness) {
+      if (rawExp.length > 0) parsed.completeness.hasExperience = true;
+      if (rawHasSkills) parsed.completeness.hasSkills = true;
+      if (Array.isArray(data.projects) && data.projects.length > 0) parsed.completeness.hasProjects = true;
+    }
+
+    return {
+      ...parsed,
+      isAiGenerated: true,
+      generationSource: 'gemini',
+    };
+  } catch (error) {
+    console.warn('[Resume Quality Review] Remote models unavailable or timed out; generating structured audit fallback:', error);
+    return getDeterministicReviewFallback(input);
   }
+}
+
+export function getDeterministicReviewFallback(input: ReviewGenerationInput) {
+  const data = input.resumeData || {};
+  const hasProjects = Array.isArray(data.projects) && data.projects.length > 0;
+  
+  // FIX 2: Correctly read 'experience' from ResumeData (with fallback for legacy 'experiences')
+  const expArray = Array.isArray(data.experience)
+    ? data.experience
+    : (Array.isArray(data.experiences) ? data.experiences : []);
+  const hasExp = expArray.length > 0;
+
+  // FIX 2: Correctly read 'technical', 'soft', and 'tools' from ResumeData.skills (do not assume 'languages')
+  const techSkills = Array.isArray(data.skills?.technical) ? data.skills.technical : [];
+  const softSkills = Array.isArray(data.skills?.soft) ? data.skills.soft : [];
+  const toolSkills = Array.isArray(data.skills?.tools) ? data.skills.tools : [];
+  const legacyLanguages = Array.isArray(data.skills?.languages) ? data.skills.languages : [];
+  const hasSkills = Boolean(
+    techSkills.length > 0 ||
+    softSkills.length > 0 ||
+    toolSkills.length > 0 ||
+    legacyLanguages.length > 0
+  );
+
+  return {
+    isAiGenerated: false,
+    generationSource: 'structured-fallback',
+    contentQuality: {
+      summaryQuality: {
+        rating: data.personalInfo?.summary ? 'good' : 'needs-work',
+        findings: [
+          data.personalInfo?.summary
+            ? 'Professional summary is present and concise; ensure it explicitly aligns with ' + input.targetRole + '.'
+            : 'Consider adding a 2-3 sentence technical summary tailored to ' + input.targetRole + '.'
+        ]
+      },
+      projectDescriptions: {
+        rating: hasProjects ? 'good' : 'needs-work',
+        findings: [
+          hasProjects
+            ? 'Project section demonstrates hands-on implementation. Verify all technical stack tags are current.'
+            : 'Include at least 2 technical projects demonstrating core competencies for ' + input.targetRole + '.'
+        ]
+      },
+      actionVerbsQuality: {
+        rating: 'good',
+        findings: ['Use strong engineering verbs such as Architected, Implemented, Deployed, and Optimized.']
+      },
+      measurableOutcomes: {
+        rating: 'needs-work',
+        findings: ['Quantify project outcomes where possible (e.g., [improved speed by X%], [supported N users]).']
+      }
+    },
+    roleAlignment: {
+      targetRole: input.targetRole,
+      alignmentRating: 'medium',
+      alignedStrengths: [
+        `Target role aligned with academic background in ${input.department || 'Computer Science'}.`,
+        'Demonstrates foundational technical domain coursework and project skills.'
+      ],
+      improvementAreas: [
+        `Ensure ${input.targetRole} core technologies are prominently highlighted in your skills list.`
+      ],
+      recommendations: [
+        `Highlight specific frameworks commonly expected for ${input.targetRole} positions.`
+      ]
+    },
+    completeness: {
+      hasContact: Boolean(data.personalInfo?.email && data.personalInfo?.fullName),
+      hasSummary: Boolean(data.personalInfo?.summary),
+      hasEducation: Boolean(data.education && data.education.length > 0),
+      hasSkills,
+      hasProjects,
+      hasExperience: hasExp,
+      hasCertifications: Boolean(data.certifications && data.certifications.length > 0),
+      hasAchievements: Boolean(data.achievements && data.achievements.length > 0),
+      hasCoursework: Boolean(data.coursework && data.coursework.length > 0),
+      isFresherAppropriate: true,
+      notes: ['Resume structure adheres to academic and placement guidelines.']
+    },
+    atsReadability: {
+      standardHeadingsUsed: true,
+      contactParsable: true,
+      formattingRisk: 'low',
+      overflowRisk: 'none',
+      unresolvedPlaceholders: [],
+      detectedSymbolsOrDecorations: [],
+      notes: ['Clean semantic structure with standard section headers compatible with all ATS parsers.']
+    },
+    suggestions: [
+      {
+        id: 'sug-fallback-1',
+        title: 'Quantify Engineering Impact in Projects',
+        whyItMatters: 'ATS parsers and engineering recruiters look for measurable engineering outcomes.',
+        evidence: hasProjects ? (data.projects[0].description || 'Project bullet') : 'Project section',
+        recommendedImprovement: 'Optimized query execution and front-end rendering performance, achieving [reduced load time by X%].',
+        expectedBenefit: 'Demonstrates accountability and engineering rigor.',
+        priority: 'high',
+        section: 'projects',
+        category: 'content-quality',
+        placeholdersUsed: ['[reduced load time by X%]'],
+        isFactualCheckRequired: true
+      }
+    ]
+  };
 }
 
 function parseReviewResponse(rawText: string | undefined): any {

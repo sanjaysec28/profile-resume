@@ -27,6 +27,8 @@ import {
 import { StudentProfile } from '../../types/profile.ts';
 import { ResumeData } from '../../types/resume.ts';
 import { ResumeSetupData } from '../../types/resumeSetup.ts';
+import { CareerPlan } from '../../types/careerIntelligence.ts';
+import { InterviewDashboardMetrics } from '../../types/interviewIntelligence.ts';
 import { VERIFIED_JOB_OPPORTUNITIES } from '../../lib/verifiedJobCatalog.ts';
 import {
   buildPlacementContext,
@@ -38,8 +40,16 @@ import {
   saveJobOpportunity,
   removeSavedJob,
   loadApplications,
+  saveApplication,
   calculatePlacementAnalytics,
 } from '../../lib/placementIntelligenceService.ts';
+import { getSavedCareerPlan } from '../../lib/careerIntelligenceService.ts';
+import {
+  loadInterviewSessions,
+  loadDsaTopics,
+  loadHrQuestions,
+  computeDashboardMetrics,
+} from '../../lib/interviewIntelligenceService.ts';
 import { PlacementDashboardOverview } from './components/PlacementDashboardOverview.tsx';
 import { JobDiscoveryWorkspace } from './components/JobDiscoveryWorkspace.tsx';
 import { ApplicationTrackerWorkspace } from './components/ApplicationTrackerWorkspace.tsx';
@@ -54,7 +64,10 @@ interface PlacementIntelligenceWorkspaceProps {
   profile?: StudentProfile | null;
   resumeData?: ResumeData | null;
   setupData?: ResumeSetupData | null;
+  careerPlan?: CareerPlan | null;
+  interviewMetrics?: InterviewDashboardMetrics | null;
   onNavigateBack?: () => void;
+  onNavigateToCareer?: () => void;
   onStartInterviewPrep?: (targetRole: string) => void;
 }
 
@@ -63,13 +76,18 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
   profile,
   resumeData,
   setupData,
+  careerPlan,
+  interviewMetrics,
   onNavigateBack,
+  onNavigateToCareer,
   onStartInterviewPrep,
 }) => {
   const [activeTab, setActiveTab] = useState<PlacementTab>('dashboard');
   const [savedJobs, setSavedJobs] = useState<VerifiedJobOpportunity[]>([]);
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadedCareerPlan, setLoadedCareerPlan] = useState<CareerPlan | null>(careerPlan || null);
+  const [loadedInterviewMetrics, setLoadedInterviewMetrics] = useState<InterviewDashboardMetrics | null>(interviewMetrics || null);
 
   // Modal states
   const [selectedJobForDetail, setSelectedJobForDetail] = useState<VerifiedJobOpportunity | null>(null);
@@ -104,6 +122,36 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
     initData();
   }, [userId]);
 
+  // Load career roadmap plan if not provided via props
+  useEffect(() => {
+    if (careerPlan) {
+      setLoadedCareerPlan(careerPlan);
+    } else if (userId && studentContext.targetRole) {
+      getSavedCareerPlan(userId, studentContext.targetRole)
+        .then((plan) => {
+          if (plan) setLoadedCareerPlan(plan);
+        })
+        .catch(() => {});
+    }
+  }, [userId, studentContext.targetRole, careerPlan]);
+
+  // Load interview metrics if not provided via props
+  useEffect(() => {
+    if (interviewMetrics) {
+      setLoadedInterviewMetrics(interviewMetrics);
+    } else if (userId) {
+      Promise.all([
+        loadInterviewSessions(userId),
+        loadDsaTopics(userId),
+        loadHrQuestions(userId),
+      ])
+        .then(([sessions, dsa, hr]) => {
+          setLoadedInterviewMetrics(computeDashboardMetrics(sessions, dsa, hr, studentContext.targetRole));
+        })
+        .catch(() => {});
+    }
+  }, [userId, interviewMetrics]);
+
   // Compute deterministic matches and eligibility for all verified opportunities
   const { matchMap, eligibilityMap } = useMemo(() => {
     const matches: Record<string, JobResumeMatchAnalysis> = {};
@@ -126,6 +174,10 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
     return new Set(savedJobs.map((j) => j.id));
   }, [savedJobs]);
 
+  const trackedJobIds = useMemo(() => {
+    return new Set(applications.map((a) => a.jobId).filter((id): id is string => Boolean(id)));
+  }, [applications]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
@@ -145,8 +197,19 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
     }
   };
 
-  // Convert discovered job into an application record
+  // Convert discovered job into an application record with duplicate prevention
   const handleTrackDiscoveredJob = (job: VerifiedJobOpportunity) => {
+    const existingApp = applications.find((a) => a.jobId === job.id);
+    if (existingApp) {
+      showToast(`"${job.title}" at ${job.company} is already tracked in your pipeline.`);
+      setEditingApplication(existingApp);
+      setIsAddModalOpen(true);
+      return;
+    }
+
+    const match = matchMap[job.id];
+    const eligibility = eligibilityMap[job.id];
+
     const newApp: ApplicationRecord = {
       id: `app_from_${job.id}_${Date.now()}`,
       userId,
@@ -160,7 +223,11 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
       jobUrl: job.originalUrl,
       sourceName: job.sourceName,
       status: 'preparing',
-      notes: `Discovered on ProFile. Match score: ${matchMap[job.id]?.matchScore || 0}%.`,
+      matchScore: match?.matchScore,
+      eligibilityStatus: eligibility?.overallStatus,
+      eligibilitySummary: eligibility?.summary,
+      deadline: job.applicationDeadline,
+      notes: `Discovered on ProFile. Match score: ${match?.matchScore || 0}%.`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -266,7 +333,10 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
                 targetRole={studentContext.targetRole}
                 analytics={analytics}
                 recommendedJobs={recommendedJobsList}
+                careerPlan={careerPlan || loadedCareerPlan}
+                interviewMetrics={interviewMetrics || loadedInterviewMetrics}
                 onNavigateTab={(tab) => setActiveTab(tab)}
+                onNavigateToCareer={onNavigateToCareer}
                 onSelectJob={(job) => setSelectedJobForDetail(job)}
                 onOpenAddApplication={() => {
                   setEditingApplication(null);
@@ -281,9 +351,11 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
                 matchMap={matchMap}
                 eligibilityMap={eligibilityMap}
                 savedJobIds={savedJobIds}
+                trackedJobIds={trackedJobIds}
                 onToggleSaveJob={handleToggleSaveJob}
                 onSelectJob={(job) => setSelectedJobForDetail(job)}
                 onPrepareApplication={(job) => setSelectedJobForDraft(job)}
+                onTrackJob={handleTrackDiscoveredJob}
               />
             )}
 
@@ -309,9 +381,11 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
                 matchMap={matchMap}
                 eligibilityMap={eligibilityMap}
                 savedJobIds={savedJobIds}
+                trackedJobIds={trackedJobIds}
                 onToggleSaveJob={handleToggleSaveJob}
                 onSelectJob={(job) => setSelectedJobForDetail(job)}
                 onPrepareApplication={(job) => setSelectedJobForDraft(job)}
+                onTrackJob={handleTrackDiscoveredJob}
               />
             )}
           </>
@@ -333,7 +407,7 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
         />
       )}
 
-      {/* Modal 2: AI Application Assistant (Cover letter & Outreach) */}
+      {/* Modal 2: AI Application Assistant (Cover letter, Application Email & Recruiter Outreach) */}
       {selectedJobForDraft && (
         <AiApplicationAssistantModal
           job={selectedJobForDraft}
@@ -350,8 +424,24 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
           }}
           userId={userId}
           onClose={() => setSelectedJobForDraft(null)}
-          onDraftApproved={() => {
-            showToast('Application draft saved to your pipeline.');
+          onDraftApproved={(draft) => {
+            if (draft.jobId) {
+              const existing = applications.find((a) => a.jobId === draft.jobId);
+              if (existing) {
+                const updated: ApplicationRecord = {
+                  ...existing,
+                  coverLetterDraftId: draft.id,
+                  coverLetterSnippet: draft.tailoredCoverLetter?.slice(0, 200),
+                  updatedAt: new Date().toISOString(),
+                };
+                saveApplication(userId, updated)
+                  .then(() => {
+                    setApplications((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+                  })
+                  .catch((err) => console.warn('Failed to link draft to application:', err));
+              }
+            }
+            showToast('Application draft approved and saved to your pipeline.');
           }}
         />
       )}

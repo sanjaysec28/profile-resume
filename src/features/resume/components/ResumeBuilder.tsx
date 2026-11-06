@@ -49,20 +49,28 @@ import {
   PenLine,
   FilePenLine,
   Brain,
+  Sparkles,
+  CheckSquare,
+  Square,
+  X,
 } from 'lucide-react';
 import { exportResumeToPdf } from '../utils/pdfExport.ts';
 import { Logo } from '../../../components/ui/Logo.tsx';
-import { SocialFooter } from '../../../components/layout/SocialFooter.tsx';
 import { Navbar } from '../../../components/layout/Navbar.tsx';
+import { SocialFooter } from '../../../components/layout/SocialFooter.tsx';
 import { AppView } from '../../../types/navigation.ts';
 import { AvatarType } from '../../../types/profile.ts';
 import { ResumeSetupData } from '../../../types/resumeSetup.ts';
+import { saveResumeToCloud, CloudSyncStatus } from '../../../lib/resumePersistenceService.ts';
+import { AtsHandoffPayload, AtsRecommendationItem } from '../../ats/components/AtsCheckerWorkspace.tsx';
+import { AtsFindingContext } from './assistant/AiContentAssistantModal.tsx';
 
 interface ResumeBuilderProps {
   onBackToDashboard: () => void;
   onNavigate?: (view: AppView) => void;
   userAvatar?: AvatarType;
   userName?: string;
+  userId?: string;
   onSignOut?: () => void;
   studentName?: string;
   initialData?: ResumeData;
@@ -71,6 +79,9 @@ interface ResumeBuilderProps {
   recommendations?: ResumeRecommendationsData | null;
   onOpenSetupWizard?: () => void;
   onOpenRecommendations?: () => void;
+  atsHandoff?: AtsHandoffPayload | null;
+  onClearAtsHandoff?: () => void;
+  onNavigateToAts?: () => void;
 }
 
 export function ResumeBuilder({
@@ -78,6 +89,7 @@ export function ResumeBuilder({
   onNavigate,
   userAvatar = 'boy',
   userName = '',
+  userId,
   onSignOut,
   studentName = '',
   initialData,
@@ -86,8 +98,12 @@ export function ResumeBuilder({
   recommendations,
   onOpenSetupWizard,
   onOpenRecommendations,
+  atsHandoff,
+  onClearAtsHandoff,
+  onNavigateToAts,
 }: ResumeBuilderProps) {
   const [activeStep, setActiveStep] = useState(1);
+  const [cloudStatus, setCloudStatus] = useState<CloudSyncStatus>('idle');
   const [resumeData, setResumeData] = useState<ResumeData>(() => {
     if (initialData) return initialData;
     try {
@@ -122,6 +138,63 @@ export function ResumeBuilder({
   const [cachedRecommendations, setCachedRecommendations] = useState<ResumeRecommendationsData | null>(
     recommendations || null
   );
+
+  // FIX 4 & Phase D.3.3: State for ATS keyword handoff and intelligent recommendation actions
+  const [selectedAtsSkills, setSelectedAtsSkills] = useState<Record<string, boolean>>({});
+  const [isAtsHandoffVisible, setIsAtsHandoffVisible] = useState(true);
+  const [assistantAtsFinding, setAssistantAtsFinding] = useState<AtsFindingContext | undefined>(undefined);
+  const [dismissedAtsRecIds, setDismissedAtsRecIds] = useState<Record<string, boolean>>({});
+
+  // Reset visibility and selections whenever a new handoff payload is received
+  useEffect(() => {
+    if (atsHandoff) {
+      setIsAtsHandoffVisible(true);
+      setSelectedAtsSkills({});
+      setDismissedAtsRecIds({});
+    }
+  }, [atsHandoff]);
+
+  const handleToggleAtsSkill = (skill: string) => {
+    setSelectedAtsSkills((prev) => ({
+      ...prev,
+      [skill]: !prev[skill],
+    }));
+  };
+
+  const handleAddVerifiedAtsSkills = () => {
+    const skillsToAdd = Object.keys(selectedAtsSkills).filter((k) => selectedAtsSkills[k]);
+    if (skillsToAdd.length === 0) {
+      showToast('Please select at least one skill you genuinely possess.');
+      return;
+    }
+
+    const existingLower = new Set(
+      [
+        ...(resumeData.skills?.technical || []),
+        ...(resumeData.skills?.soft || []),
+        ...(resumeData.skills?.tools || []),
+      ].map((s) => s.toLowerCase().trim())
+    );
+
+    const genuinelyNew = skillsToAdd.filter((s) => !existingLower.has(s.toLowerCase().trim()));
+    if (genuinelyNew.length === 0) {
+      showToast('Selected skills are already present on your resume.');
+      return;
+    }
+
+    const updatedSkills = {
+      ...resumeData.skills,
+      technical: [...(resumeData.skills?.technical || []), ...genuinelyNew],
+    };
+
+    setResumeData((prev) => ({
+      ...prev,
+      skills: updatedSkills,
+    }));
+
+    showToast(`Added ${genuinelyNew.length} verified skill(s) to Technical Skills!`);
+    setSelectedAtsSkills({});
+  };
 
   // Phase 4: AI Resume Final Review & Quality Assurance state
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
@@ -163,11 +236,116 @@ export function ResumeBuilder({
     content?: string | string[],
     context?: { itemId?: string; itemTitle?: string; itemTechStack?: string[] }
   ) => {
+    setAssistantAtsFinding(undefined);
     setAssistantSection(section);
     setAssistantAction(action);
     setAssistantContent(content || '');
     setAssistantItemContext(context);
     setIsAssistantOpen(true);
+  };
+
+  const handleOpenAssistantForAts = (rec: AtsRecommendationItem) => {
+    setAssistantAtsFinding({
+      findingTitle: rec.issue,
+      findingDescription: rec.whyItMatters,
+      suggestedImprovement: rec.suggestedImprovement,
+      missingKeywords: rec.targetKeywords,
+      evidenceOrMissing: rec.evidenceOrMissing,
+      priority: rec.priority,
+    });
+
+    const targetSection = (rec.section as ContentAssistantSection) || 'summary';
+    setAssistantSection(targetSection);
+    setAssistantAction('ats_keywords');
+
+    if (targetSection === 'summary') {
+      setAssistantContent(resumeData.personalInfo.summary || '');
+      setAssistantItemContext(undefined);
+    } else if (targetSection === 'projects') {
+      const firstProj = resumeData.projects[0];
+      setAssistantContent(
+        firstProj
+          ? (firstProj.bullets && firstProj.bullets.length > 0
+              ? firstProj.bullets
+              : firstProj.description || '')
+          : ''
+      );
+      if (firstProj) {
+        setAssistantItemContext({
+          itemId: firstProj.id,
+          itemTitle: firstProj.title,
+          itemTechStack: firstProj.techStack,
+        });
+      }
+    } else if (targetSection === 'experience') {
+      const firstExp = resumeData.experience[0];
+      setAssistantContent(
+        firstExp
+          ? (firstExp.bullets && firstExp.bullets.length > 0
+              ? firstExp.bullets
+              : firstExp.description || '')
+          : ''
+      );
+      if (firstExp) {
+        setAssistantItemContext({
+          itemId: firstExp.id,
+          itemTitle: `${firstExp.position} at ${firstExp.company}`,
+        });
+      }
+    } else if (targetSection === 'technical_skills' || targetSection === 'soft_skills') {
+      setAssistantContent(resumeData.skills.technical.join(', '));
+      setAssistantItemContext(undefined);
+    } else {
+      setAssistantContent(rec.suggestedImprovement || '');
+      setAssistantItemContext(undefined);
+    }
+
+    setIsAssistantOpen(true);
+  };
+
+  const handleApplyAtsRecommendationDirectly = (rec: AtsRecommendationItem) => {
+    if (rec.targetKeywords && rec.targetKeywords.length > 0) {
+      const existing = new Set(
+        [
+          ...(resumeData.skills?.technical || []),
+          ...(resumeData.skills?.soft || []),
+          ...(resumeData.skills?.tools || []),
+        ].map((s) => s.toLowerCase().trim())
+      );
+      const toAdd = (rec.targetKeywords || []).filter((k: string) => !existing.has(k.toLowerCase().trim()));
+      if (toAdd.length > 0) {
+        setResumeData((prev) => ({
+          ...prev,
+          skills: {
+            ...prev.skills,
+            technical: [...(prev.skills?.technical || []), ...toAdd],
+          },
+        }));
+        showToast(`Added ${toAdd.length} verified skill(s) to Technical Skills!`);
+      } else {
+        showToast('Target keywords are already present in Technical Skills.');
+      }
+    } else if (rec.section === 'summary' && rec.suggestedImprovement) {
+      setResumeData((prev) => ({
+        ...prev,
+        personalInfo: {
+          ...prev.personalInfo,
+          summary: prev.personalInfo.summary
+            ? `${prev.personalInfo.summary}\n\n${rec.suggestedImprovement}`
+            : rec.suggestedImprovement,
+        },
+      }));
+      showToast('Updated summary with suggested wording.');
+    } else {
+      handleOpenAssistantForAts(rec);
+      return;
+    }
+    setDismissedAtsRecIds((prev) => ({ ...prev, [rec.id]: true }));
+  };
+
+  const handleDismissAtsRecommendation = (recId: string) => {
+    setDismissedAtsRecIds((prev) => ({ ...prev, [recId]: true }));
+    showToast('Recommendation dismissed.');
   };
 
   const handleApplyAssistantContent = (result: {
@@ -367,12 +545,34 @@ export function ResumeBuilder({
     showToast('Updated resume section ordering and visibility!');
   };
 
-  // Sync to local storage
-  const handleSaveDraft = () => {
+  // Sync resumeData when initialData changes (e.g. cloud resume loaded)
+  useEffect(() => {
+    if (initialData) {
+      setResumeData(initialData);
+    }
+  }, [initialData]);
+
+  // Sync to local storage and Cloud Firestore
+  const handleSaveDraft = async () => {
     try {
       localStorage.setItem('profile_resume_draft', JSON.stringify(resumeData));
       onResumeDataChange?.(resumeData);
-      showToast('Resume draft saved successfully!');
+
+      if (userId) {
+        setCloudStatus('saving');
+        const success = await saveResumeToCloud(userId, resumeData);
+        if (success) {
+          setCloudStatus('saved');
+          showToast('Resume draft saved securely to Cloud Firestore!');
+          setTimeout(() => setCloudStatus('idle'), 3000);
+        } else {
+          setCloudStatus('error');
+          showToast('Saved locally. Cloud sync encountered a network issue.');
+        }
+      } else {
+        setCloudStatus('offline');
+        showToast('Saved locally. Sign in with Google to enable cloud sync!');
+      }
     } catch {
       showToast('Could not save draft to local storage.');
     }
@@ -618,17 +818,37 @@ export function ResumeBuilder({
               </div>
             </button>
 
-            {/* 6. Save Draft */}
+            {/* 6. Save Draft & Cloud Sync */}
             <button
               type="button"
               onClick={handleSaveDraft}
               className="inline-flex items-center gap-2 h-11 px-3 sm:px-3.5 rounded-xl bg-white hover:bg-[#FAF9F5] border border-[#E5E0D8] text-xs font-semibold text-[#101010] shadow-2xs transition-colors cursor-pointer select-none"
-              title="Save current resume state"
+              title="Save current resume state to Cloud Firestore"
             >
-              <Bookmark className="w-4 h-4 text-[#777777] shrink-0" />
+              {cloudStatus === 'saving' ? (
+                <Loader2 className="w-4 h-4 text-amber-500 animate-spin shrink-0" />
+              ) : cloudStatus === 'saved' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : cloudStatus === 'error' ? (
+                <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+              ) : (
+                <Bookmark className="w-4 h-4 text-[#777777] shrink-0" />
+              )}
               <div className="flex flex-col text-left leading-tight min-w-0">
-                <span className="text-[10px] text-[#888888] font-normal uppercase tracking-wider block">Local/Cloud</span>
-                <span className="font-semibold text-xs text-[#101010] block truncate">Save Draft</span>
+                <span className="text-[10px] text-[#888888] font-normal uppercase tracking-wider block">
+                  {cloudStatus === 'saving'
+                    ? 'Saving...'
+                    : cloudStatus === 'saved'
+                    ? 'Cloud Saved'
+                    : cloudStatus === 'error'
+                    ? 'Sync Error'
+                    : userId
+                    ? 'Cloud Sync'
+                    : 'Local Cache'}
+                </span>
+                <span className="font-semibold text-xs text-[#101010] block truncate">
+                  {cloudStatus === 'saving' ? 'Syncing...' : 'Save Draft'}
+                </span>
               </div>
             </button>
 
@@ -720,6 +940,17 @@ export function ResumeBuilder({
                   </div>
 
                   <div className="flex items-center gap-2">
+                    {/* Mobile Quick Preview Trigger for small screens */}
+                    <button
+                      type="button"
+                      onClick={() => setIsMobilePreviewOpen(true)}
+                      className="lg:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#E5E0D8] text-xs font-semibold text-[#101010] hover:bg-[#FAF9F5] shadow-2xs transition-colors cursor-pointer"
+                      title="Preview Resume"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-[#555555]" />
+                      <span className="hidden sm:inline">Preview</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => handleOpenAssistant(
@@ -732,7 +963,8 @@ export function ResumeBuilder({
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FAF5EC] border border-[#E8DEC8] text-xs font-semibold text-[#8C6D1F] hover:bg-[#F2EBDC] shadow-2xs transition-colors cursor-pointer"
                     >
                       <FilePenLine className="w-3.5 h-3.5 text-amber-500" />
-                      <span>Section AI</span>
+                      <span className="hidden sm:inline">Section AI</span>
+                      <span className="sm:hidden">AI</span>
                     </button>
                     <button
                       type="button"
@@ -740,13 +972,14 @@ export function ResumeBuilder({
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#E5E0D8] text-xs font-semibold text-[#101010] hover:bg-[#FAF9F5] shadow-2xs transition-colors cursor-pointer"
                     >
                       <Bookmark className="w-3.5 h-3.5 text-[#777777]" />
-                      <span>Save Draft</span>
+                      <span className="hidden sm:inline">Save Draft</span>
+                      <span className="sm:hidden">Save</span>
                     </button>
                     <button
                       type="button"
                       onClick={handleDownloadPdf}
                       disabled={isExportingPdf}
-                      className={`hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white shadow-2xs transition-colors cursor-pointer ${
+                      className={`inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white shadow-2xs transition-colors cursor-pointer ${
                         isExportingPdf
                           ? 'bg-[#333333] opacity-90 cursor-wait'
                           : 'bg-[#101010] hover:bg-[#252525]'
@@ -755,17 +988,263 @@ export function ResumeBuilder({
                       {isExportingPdf ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Exporting...</span>
+                          <span className="hidden sm:inline">Exporting...</span>
                         </>
                       ) : (
                         <>
                           <Download className="w-3.5 h-3.5" />
-                          <span>Download PDF</span>
+                          <span className="hidden sm:inline">Download PDF</span>
+                          <span className="sm:hidden">PDF</span>
                         </>
                       )}
                     </button>
                   </div>
                 </div>
+
+                {/* FIX 4: ATS KEYWORD HANDOFF & VERIFICATION PANEL */}
+                {atsHandoff && isAtsHandoffVisible && (
+                  <div className="mb-6 p-5 sm:p-6 bg-gradient-to-r from-[#FAF8F5] via-[#FFFDF9] to-[#FAF8F5] border border-[#E8DEC8] rounded-[24px] shadow-2xs space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#EBE3D3]">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-[#101010] text-[#F8F5EE] flex items-center justify-center shrink-0">
+                          <Sparkles className="w-4 h-4 text-amber-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-xs sm:text-sm font-bold text-[#101010]">
+                            ATS Keyword Optimization Suggestions
+                          </h3>
+                          <p className="text-[11px] text-[#777777]">
+                            Identified from your recent ATS scan {atsHandoff.targetRole ? `for ${atsHandoff.targetRole}` : ''}.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {onNavigateToAts && (
+                          <button
+                            type="button"
+                            onClick={onNavigateToAts}
+                            className="text-[11px] font-semibold text-[#8C6D1F] hover:text-[#684F12] px-2.5 py-1 rounded-lg bg-white border border-[#E8DEC8] hover:bg-[#FAF5EC] transition-colors cursor-pointer"
+                            title="Return to ATS Checker"
+                          >
+                            Return to ATS
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAtsHandoffVisible(false);
+                            onClearAtsHandoff?.();
+                          }}
+                          className="p-1 rounded-lg text-[#888888] hover:text-[#101010] hover:bg-[#EAE4D8] transition-colors cursor-pointer"
+                          title="Dismiss"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl text-[11px] text-amber-900 leading-relaxed">
+                      <strong>Honest Skill Representation:</strong> ProFile never fabricates claims. Check <em>only</em> the keywords you genuinely possess practical experience with to insert them safely into your verified technical skills.
+                    </div>
+
+                    {/* Missing Keywords List with Checkboxes */}
+                    {atsHandoff.missingKeywords && atsHandoff.missingKeywords.length > 0 && (
+                      <div className="space-y-2.5">
+                        <span className="text-[11px] font-bold text-[#101010] block">
+                          Suggested Target Keywords ({atsHandoff.missingKeywords.length}):
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {atsHandoff.missingKeywords.map((kw) => {
+                            const isSelected = Boolean(selectedAtsSkills[kw]);
+                            return (
+                              <button
+                                key={kw}
+                                type="button"
+                                onClick={() => handleToggleAtsSkill(kw)}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-[#101010] text-[#F8F5EE] border-[#101010] shadow-2xs'
+                                    : 'bg-white text-[#333333] border-[#DDD5C7] hover:border-[#101010]'
+                                }`}
+                              >
+                                {isSelected ? (
+                                  <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
+                                ) : (
+                                  <Square className="w-3.5 h-3.5 text-[#888888]" />
+                                )}
+                                <span>{kw}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="pt-2 flex items-center justify-between gap-3">
+                          <span className="text-[11px] text-[#777777]">
+                            {Object.values(selectedAtsSkills).filter(Boolean).length} of {atsHandoff.missingKeywords.length} selected
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleAddVerifiedAtsSkills}
+                            disabled={Object.values(selectedAtsSkills).filter(Boolean).length === 0}
+                            className="px-3.5 py-1.5 rounded-xl bg-[#101010] text-white text-xs font-semibold hover:bg-[#252525] disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-colors cursor-pointer"
+                          >
+                            Add Selected Skills to Resume
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Phase D.3.3: Intelligent ATS Recommendations with Apply / AI Assistant / Dismiss */}
+                    {atsHandoff.recommendations && atsHandoff.recommendations.length > 0 ? (
+                      <div className="pt-3 border-t border-[#EBE3D3] space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-[#101010] uppercase tracking-wider">
+                            Intelligent Resume Improvements ({
+                              atsHandoff.recommendations.filter((r) => !dismissedAtsRecIds[r.id]).length
+                            })
+                          </span>
+                          <span className="text-[10px] text-[#777777]">
+                            Targeted fixes mapped to specific resume sections
+                          </span>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          {atsHandoff.recommendations
+                            .filter((r) => !dismissedAtsRecIds[r.id])
+                            .map((rec) => {
+                              const sectionLabel =
+                                rec.section === 'technical_skills'
+                                  ? 'Skills'
+                                  : rec.section === 'projects'
+                                  ? 'Projects'
+                                  : rec.section === 'summary'
+                                  ? 'Summary'
+                                  : rec.section === 'experience'
+                                  ? 'Experience'
+                                  : rec.section === 'education'
+                                  ? 'Education'
+                                  : 'General';
+
+                              const priorityBadgeClass =
+                                rec.priority === 'high'
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                  : rec.priority === 'medium'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-stone-100 text-stone-700 border-stone-200';
+
+                              return (
+                                <div
+                                  key={rec.id}
+                                  className="p-3.5 bg-white border border-[#E5E0D8] rounded-xl shadow-2xs space-y-2.5 transition-all hover:border-[#D5CDBD]"
+                                >
+                                  {/* Item Header */}
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-[#101010] text-[#F8F5EE]">
+                                        {sectionLabel}
+                                      </span>
+                                      <span
+                                        className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase border ${priorityBadgeClass}`}
+                                      >
+                                        {rec.priority} priority
+                                      </span>
+                                      <h4 className="text-xs font-bold text-[#101010]">
+                                        {rec.issue}
+                                      </h4>
+                                    </div>
+                                  </div>
+
+                                  {/* Identified Problem & Evidence */}
+                                  <p className="text-[11px] text-[#555555] leading-relaxed">
+                                    {rec.evidenceOrMissing}
+                                  </p>
+
+                                  {/* Why it matters */}
+                                  <div className="p-2.5 rounded-lg bg-[#FAF8F5] border border-[#EBE3D3] text-[11px] space-y-1">
+                                    <div className="text-[10px] font-bold text-[#777777] uppercase tracking-wider">
+                                      Why this matters:
+                                    </div>
+                                    <div className="text-[#333333] leading-relaxed">
+                                      {rec.whyItMatters}
+                                    </div>
+                                  </div>
+
+                                  {/* Suggested improvement & Evidence */}
+                                  {rec.suggestedImprovement && (
+                                    <div className="text-[11px] text-[#101010] font-medium leading-relaxed">
+                                      <strong className="text-[#8C6D1F]">Suggested Fix: </strong>
+                                      {rec.suggestedImprovement}
+                                    </div>
+                                  )}
+
+                                  {rec.targetKeywords && rec.targetKeywords.length > 0 && (
+                                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                      <span className="text-[10px] text-[#777777] font-medium">
+                                        Relevant keywords:
+                                      </span>
+                                      {(rec.targetKeywords as string[]).map((kw: string) => (
+                                        <span
+                                          key={kw}
+                                          className="px-2 py-0.5 rounded-md bg-[#F4F1EA] text-[#333333] text-[10px] font-semibold border border-[#E5E0D8]"
+                                        >
+                                          {kw}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* 3 Explicit Actions: Apply / Edit with AI Assistant / Dismiss */}
+                                  <div className="pt-2 border-t border-[#F0ECE3] flex items-center justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDismissAtsRecommendation(rec.id)}
+                                      className="px-2.5 py-1 rounded-lg text-[11px] font-medium text-[#777777] hover:text-[#101010] hover:bg-[#F2ECE3] transition-colors cursor-pointer"
+                                    >
+                                      Dismiss
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenAssistantForAts(rec)}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-semibold text-[#8C6D1F] bg-[#FAF5EC] border border-[#E8DEC8] hover:bg-[#F0E6D2] transition-colors cursor-pointer shadow-2xs"
+                                    >
+                                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                      <span>Edit with AI Assistant</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApplyAtsRecommendationDirectly(rec)}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-semibold text-white bg-[#101010] hover:bg-[#252525] transition-colors cursor-pointer shadow-2xs"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                      <span>Apply Suggestion</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    ) : (
+                      /* Fallback to simple action items preview if recommendations array is not present */
+                      atsHandoff.actionItems && atsHandoff.actionItems.length > 0 && (
+                        <div className="pt-3 border-t border-[#EBE3D3] space-y-1.5">
+                          <span className="text-[11px] font-bold text-[#101010] block">
+                            ATS Improvement Action Items:
+                          </span>
+                          <ul className="space-y-1 text-[11px] text-[#555555]">
+                            {atsHandoff.actionItems.slice(0, 3).map((item) => (
+                              <li key={item.id} className="flex items-start gap-1.5">
+                                <span className="font-bold text-[#101010]">•</span>
+                                <span><strong>{item.title}:</strong> {item.description}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
 
                 {/* DYNAMIC FORM STEP BODY */}
                 <div className="pt-1 pb-8">
@@ -993,7 +1472,10 @@ export function ResumeBuilder({
       {/* AI CONTENT ASSISTANT MODAL (PHASE 3) */}
       <AiContentAssistantModal
         isOpen={isAssistantOpen}
-        onClose={() => setIsAssistantOpen(false)}
+        onClose={() => {
+          setIsAssistantOpen(false);
+          setAssistantAtsFinding(undefined);
+        }}
         resumeData={resumeData}
         resumeSetup={resumeSetup}
         recommendations={cachedRecommendations}
@@ -1001,6 +1483,7 @@ export function ResumeBuilder({
         initialAction={assistantAction}
         initialContent={assistantContent}
         itemContext={assistantItemContext}
+        atsFindingContext={assistantAtsFinding}
         onApplyContent={handleApplyAssistantContent}
       />
 

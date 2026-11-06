@@ -12,6 +12,7 @@ import {
   SkillGapItem,
   SkillImportance,
   SkillStatus,
+  SkillCategory,
 } from '../../../types/careerIntelligence.ts';
 import {
   CheckCircle2,
@@ -21,14 +22,20 @@ import {
   Filter,
   ArrowRight,
   ExternalLink,
+  Sparkles,
 } from 'lucide-react';
 
 interface SkillGapMatrixProps {
   skillGaps: SkillGapItem[];
   onToggleLearning?: (skillName: string) => void;
+  onPracticeSkillGap?: (skillName: string, category: SkillCategory) => void;
 }
 
-export function SkillGapMatrix({ skillGaps, onToggleLearning }: SkillGapMatrixProps) {
+export function SkillGapMatrix({
+  skillGaps,
+  onToggleLearning,
+  onPracticeSkillGap,
+}: SkillGapMatrixProps) {
   const [importanceFilter, setImportanceFilter] = useState<'all' | SkillImportance>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | SkillStatus>('all');
 
@@ -173,8 +180,19 @@ export function SkillGapMatrix({ skillGaps, onToggleLearning }: SkillGapMatrixPr
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {getStatusBadge(item.status)}
+                  {onPracticeSkillGap && (
+                    <button
+                      type="button"
+                      onClick={() => onPracticeSkillGap(item.name, item.category)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-[#FAF5EC] border border-[#DDD5C7] text-[11px] font-semibold text-[#101010] transition-colors cursor-pointer shadow-2xs"
+                      title={`Practice interview questions for ${item.name}`}
+                    >
+                      <Sparkles className="w-3 h-3 text-amber-500" />
+                      <span>Practice in Interview</span>
+                    </button>
+                  )}
                   {onToggleLearning && item.status !== 'demonstrated' && (
                     <button
                       type="button"

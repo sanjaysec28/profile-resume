@@ -6,7 +6,7 @@
  * Phase 11: Real Firebase Authentication + Cloud Firestore User Profile + Cloudinary Integration
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AppShell } from './components/layout/AppShell.tsx';
 import { PageHeader } from './components/layout/PageHeader.tsx';
 import { Button } from './components/ui/Button.tsx';
@@ -19,6 +19,11 @@ import { INITIAL_STUDENT_PROFILE } from './lib/constants.ts';
 import { INITIAL_RESUME_DATA } from './features/resume/constants.ts';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 import { mapUserDocToStudentProfile } from './lib/userService.ts';
+import {
+  loadUserResumeWithMigration,
+  createDebouncedResumeSaver,
+  clearLocalResumeOnSignOut,
+} from './lib/resumePersistenceService.ts';
 import {
   Upload,
   CheckCircle2,
@@ -33,9 +38,9 @@ import { ResumeBuilder, ResumeSetupWizard, RecommendationsDashboard } from './fe
 import { ResumeSetupData } from './types/resumeSetup.ts';
 import { getActiveResumeSetup, createInitialResumeSetup } from './lib/resumeSetupService.ts';
 import { MyProfilePage } from './components/profile/MyProfilePage.tsx';
-import { AtsCheckerWorkspace } from './features/ats/components/AtsCheckerWorkspace.tsx';
+import { AtsCheckerWorkspace, AtsHandoffPayload } from './features/ats/components/AtsCheckerWorkspace.tsx';
 import { CareerIntelligenceWorkspace } from './features/career/index.ts';
-import { InterviewIntelligenceWorkspace } from './features/interview/index.ts';
+import { InterviewIntelligenceWorkspace, InterviewNavContext } from './features/interview/index.ts';
 import { PlacementIntelligenceWorkspace } from './features/placement/index.ts';
 
 import { forceUnlockAllScroll } from './lib/scrollLock.ts';
@@ -45,6 +50,8 @@ function AppContent() {
   const { user, userProfile, isLoading: isAuthLoading, isConfigured, signOut, updateProfile } = useAuth();
   const [currentView, setCurrentView] = useState<AppView>('welcome');
   const [isInitializing, setIsInitializing] = useState(true);
+  const [atsHandoffData, setAtsHandoffData] = useState<AtsHandoffPayload | null>(null);
+  const [interviewNavContext, setInterviewNavContext] = useState<InterviewNavContext | null>(null);
 
   // Ensure scroll is never locked when switching views
   useEffect(() => {
@@ -146,6 +153,55 @@ function AppContent() {
     }
   }, [userProfile]);
 
+  // Cloud resume autosave debouncer
+  const saverRef = useRef(createDebouncedResumeSaver(undefined, 2000));
+
+  // Load cloud resume with safe migration when authenticated user signs in
+  useEffect(() => {
+    if (user?.uid) {
+      loadUserResumeWithMigration(user.uid).then((res) => {
+        if (res.resumeData) {
+          setResumeData(res.resumeData);
+        }
+      });
+    }
+  }, [user?.uid]);
+
+  // Autosave resume changes to Cloud Firestore with debouncing
+  useEffect(() => {
+    if (user?.uid) {
+      saverRef.current.scheduleSave(user.uid, resumeData);
+    }
+  }, [resumeData, user?.uid]);
+
+  // Multi-tab synchronization: listening for changes made in other tabs
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'profile_resume_draft' && e.newValue) {
+        try {
+          const remoteDraft = JSON.parse(e.newValue) as ResumeData;
+          const ownerUid = localStorage.getItem('profile_resume_owner_uid');
+          if (!user || !ownerUid || ownerUid === user.uid) {
+            setResumeData(remoteDraft);
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [user?.uid]);
+
+  // Network recovery: immediately sync pending changes when internet restores
+  useEffect(() => {
+    const handleOnline = () => {
+      if (user?.uid) {
+        saverRef.current.scheduleSave(user.uid, resumeData);
+      }
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [user?.uid, resumeData]);
+
   // If user is authenticated and is on signin or welcome, take them directly to dashboard
   useEffect(() => {
     if (user && (currentView === 'signin' || currentView === 'welcome')) {
@@ -236,7 +292,7 @@ function AppContent() {
     });
   };
 
-  // Protected navigation handler
+  // Protected navigation handler with complete view mapping
   const handleNavigate = (view: AppView) => {
     // If user is unauthenticated, protected routes redirect to signin
     if (!user && view !== 'welcome' && view !== 'signin') {
@@ -247,7 +303,12 @@ function AppContent() {
       setCurrentView('resume-recommendations');
       return;
     }
-    if (view === 'resume-builder') {
+    if (
+      view === 'resume-builder' ||
+      view === 'resume-templates' ||
+      view === 'resume-editor' ||
+      view === 'resume-preview'
+    ) {
       if (activeResumeSetup) {
         setCurrentView('resume-builder');
       } else {
@@ -255,11 +316,28 @@ function AppContent() {
       }
       return;
     }
+    if (view === 'ats-results') {
+      setCurrentView('ats-upload');
+      return;
+    }
+    if (view === 'history') {
+      setCurrentView('interview-prep');
+      return;
+    }
+    if (view === 'design-system') {
+      setCurrentView('dashboard');
+      return;
+    }
     setCurrentView(view);
   };
 
-  // Sign out handler
+  // Sign out handler: clears in-memory state and local cache without touching remote Firestore documents
   const handleSignOut = async () => {
+    saverRef.current.cancel();
+    clearLocalResumeOnSignOut();
+    setProfile(INITIAL_STUDENT_PROFILE);
+    setResumeData(INITIAL_RESUME_DATA);
+    setActiveResumeSetup(null);
     await signOut();
     setCurrentView('welcome');
   };
@@ -440,6 +518,7 @@ function AppContent() {
           onNavigate={handleNavigate}
           userAvatar={profile.avatar}
           userName={profile.fullName}
+          userId={user?.uid}
           onSignOut={user ? handleSignOut : undefined}
           studentName={profile.fullName.split(' ')[0]}
           initialData={resumeData}
@@ -452,6 +531,9 @@ function AppContent() {
               localStorage.setItem('profile_resume_draft', JSON.stringify(data));
             } catch {}
           }}
+          atsHandoff={atsHandoffData}
+          onClearAtsHandoff={() => setAtsHandoffData(null)}
+          onNavigateToAts={() => setCurrentView('ats-upload')}
         />
       </>
     );
@@ -462,14 +544,26 @@ function AppContent() {
     return (
       <>
         <LoadingScreen isLoading={isInitializing} />
-        <CareerIntelligenceWorkspace
-          user={user}
-          profile={profile}
-          resumeData={resumeData}
-          resumeSetup={activeResumeSetup}
+        <AppShell
+          currentView={currentView}
           onNavigate={handleNavigate}
+          userAvatar={profile.avatar}
+          userName={profile.fullName}
           onSignOut={user ? handleSignOut : undefined}
-        />
+        >
+          <CareerIntelligenceWorkspace
+            user={user}
+            profile={profile}
+            resumeData={resumeData}
+            resumeSetup={activeResumeSetup}
+            onNavigate={handleNavigate}
+            onNavigateToInterview={(ctx) => {
+              setInterviewNavContext(ctx || null);
+              setCurrentView('interview-prep');
+            }}
+            onSignOut={user ? handleSignOut : undefined}
+          />
+        </AppShell>
       </>
     );
   }
@@ -491,7 +585,15 @@ function AppContent() {
             profile={profile}
             resumeData={resumeData}
             setupData={activeResumeSetup}
-            onNavigateBack={() => setCurrentView('dashboard')}
+            initialTab={interviewNavContext?.tab}
+            initialMockCategory={interviewNavContext?.category}
+            initialTargetedGaps={interviewNavContext?.targetedSkillGaps}
+            initialTopic={interviewNavContext?.topic}
+            onClearNavContext={() => setInterviewNavContext(null)}
+            onNavigateBack={() => {
+              setInterviewNavContext(null);
+              setCurrentView('dashboard');
+            }}
           />
         </AppShell>
       </>
@@ -516,6 +618,11 @@ function AppContent() {
             resumeData={resumeData}
             setupData={activeResumeSetup}
             onNavigateBack={() => setCurrentView('dashboard')}
+            onNavigateToCareer={() => setCurrentView('career-intelligence')}
+            onStartInterviewPrep={(role) => {
+              setInterviewNavContext(role ? { topic: role } : null);
+              setCurrentView('interview-prep');
+            }}
           />
         </AppShell>
       </>
@@ -654,8 +761,8 @@ function AppContent() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#8C6D1F] bg-[#FAF5EC] border border-[#E8DEC8] px-2.5 py-0.5 rounded-full">
-                          Phase 5 Intelligence
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#8C6D1F] bg-[#FAF5EC] border border-[#E8DEC8] px-2 py-0.5 rounded-md">
+                          Roadmap Engine
                         </span>
                         <span className="text-xs text-[#777777]">
                           Personalized Roadmap
@@ -679,7 +786,7 @@ function AppContent() {
                   </button>
                 </div>
 
-                {/* Phase 6 Feature Card: AI Interview Intelligence & Placement Prep */}
+                {/* AI Interview Intelligence & Placement Prep */}
                 <div className="mt-4 p-5 sm:p-6 rounded-[22px] bg-gradient-to-r from-white via-[#FAF9F5] to-white border border-[#E5E0D8] shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-[#101010] text-[#F8F5EE] flex items-center justify-center shrink-0 shadow-xs">
@@ -687,8 +794,8 @@ function AppContent() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                          Phase 6 Intelligence
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                          Interview Studio
                         </span>
                         <span className="text-xs text-[#777777]">
                           AI Mock & Defense
@@ -712,7 +819,7 @@ function AppContent() {
                   </button>
                 </div>
 
-                {/* Phase 7 Feature Card: AI Placement Intelligence, Job Discovery & Application Management */}
+                {/* AI Placement Intelligence, Job Discovery & Application Management */}
                 <div className="mt-4 p-5 sm:p-6 rounded-[22px] bg-gradient-to-r from-white via-[#FAF9F5] to-white border border-[#E5E0D8] shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-[#101010] text-[#F8F5EE] flex items-center justify-center shrink-0 shadow-xs">
@@ -720,8 +827,8 @@ function AppContent() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-800 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">
-                          Phase 7 Intelligence
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                          Placement Portal
                         </span>
                         <span className="text-xs text-[#777777]">
                           Verified Jobs &amp; Application Hub
@@ -776,7 +883,14 @@ function AppContent() {
             {currentView === 'ats-upload' && (
               <AtsCheckerWorkspace
                 resumeData={resumeData}
+                resumeSetup={activeResumeSetup}
+                userId={user?.uid}
+                resumeId={activeResumeSetup?.id || resumeData.id}
                 onNavigateToBuilder={() => setCurrentView('resume-builder')}
+                onApplyAtsImprovements={(payload) => {
+                  setAtsHandoffData(payload);
+                  setCurrentView('resume-builder');
+                }}
               />
             )}
           </div>

@@ -66,6 +66,8 @@ export interface RoadmapTask {
   status: RoadmapTaskStatus;
   studentNotes?: string;
   completedAt?: string;
+  interviewTopics?: string[]; // Interview skills or questions prepared by this milestone
+  practiceCategory?: string; // Direct link to interview category (e.g. 'dsa', 'database-sql', 'technical-fundamentals', 'hr-behavioral')
 }
 
 export interface RoadmapStage {

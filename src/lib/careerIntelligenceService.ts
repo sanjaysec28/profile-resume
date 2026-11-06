@@ -381,12 +381,13 @@ export async function deleteRoadmapTask(
 export async function askCareerAssistant(
   question: string,
   history: CareerChatMessage[],
-  careerPlan: CareerPlan
+  careerPlan: CareerPlan,
+  interviewMetrics?: any
 ): Promise<string> {
   const response = await fetch('/api/career/assistant-chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, history, careerPlan }),
+    body: JSON.stringify({ question, history, careerPlan, interviewMetrics }),
   });
 
   if (!response.ok) {

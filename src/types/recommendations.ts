@@ -83,6 +83,9 @@ export interface ResumeRecommendationsData {
   suggestedProjectIdeas: ProjectIdeaRecommendation[];
   keywords: KeywordRecommendation[];
   certifications: CertificationRecommendation[];
+  modelUsed?: string;
+  generationSource?: 'gemini' | 'structured-fallback';
+  isAiGenerated?: boolean;
 }
 
 export interface RecommendationsGenerationInput {

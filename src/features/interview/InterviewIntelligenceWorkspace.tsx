@@ -42,16 +42,31 @@ import { InterviewSessionHistoryView } from './components/InterviewSessionHistor
 import { StudentProfile } from '../../types/profile.ts';
 import { ResumeData } from '../../types/resume.ts';
 import { ResumeSetupData } from '../../types/resumeSetup.ts';
+import { CareerPlan } from '../../types/careerIntelligence.ts';
+import { getSavedCareerPlan } from '../../lib/careerIntelligenceService.ts';
 import { INITIAL_DSA_TOPICS, CORE_HR_QUESTIONS } from '../../lib/interviewPrepData.ts';
 
-type InterviewTab = 'overview' | 'mock' | 'resume-questions' | 'dsa' | 'hr' | 'coach' | 'history';
+export type InterviewTab = 'overview' | 'mock' | 'resume-questions' | 'dsa' | 'hr' | 'coach' | 'history';
+
+export interface InterviewNavContext {
+  tab?: InterviewTab | string;
+  category?: string;
+  topic?: string;
+  targetedSkillGaps?: string[];
+}
 
 interface InterviewIntelligenceWorkspaceProps {
   userId?: string;
   profile?: StudentProfile | null;
   resumeData?: ResumeData | null;
   setupData?: ResumeSetupData | null;
+  careerPlan?: CareerPlan | null;
+  initialTab?: InterviewTab | string;
+  initialMockCategory?: string;
+  initialTargetedGaps?: string[];
+  initialTopic?: string;
   onNavigateBack?: () => void;
+  onClearNavContext?: () => void;
 }
 
 export const InterviewIntelligenceWorkspace: React.FC<InterviewIntelligenceWorkspaceProps> = ({
@@ -59,14 +74,26 @@ export const InterviewIntelligenceWorkspace: React.FC<InterviewIntelligenceWorks
   profile,
   resumeData,
   setupData,
+  careerPlan,
+  initialTab,
+  initialMockCategory: propInitialMockCategory,
+  initialTargetedGaps,
   onNavigateBack,
+  onClearNavContext,
 }) => {
-  const [activeTab, setActiveTab] = useState<InterviewTab>('overview');
+  const [activeTab, setActiveTab] = useState<InterviewTab>(
+    (initialTab as InterviewTab) || 'overview'
+  );
   const [sessions, setSessions] = useState<InterviewSession[]>([]);
   const [dsaTopics, setDsaTopics] = useState<DsaTopic[]>(INITIAL_DSA_TOPICS);
   const [hrQuestions, setHrQuestions] = useState<HrPracticeQuestion[]>(CORE_HR_QUESTIONS);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [initialMockCategory, setInitialMockCategory] = useState<string>('technical-fundamentals');
+  const [initialMockCategory, setInitialMockCategory] = useState<string>(
+    propInitialMockCategory || 'technical-fundamentals'
+  );
+  const [resolvedCareerPlan, setResolvedCareerPlan] = useState<CareerPlan | null>(
+    careerPlan || null
+  );
 
   // Derive target role and student profile context safely
   const targetRole =
@@ -94,6 +121,45 @@ export const InterviewIntelligenceWorkspace: React.FC<InterviewIntelligenceWorks
     description: p.description || '',
     bullets: p.bullets || [],
   }));
+
+  // Synchronize incoming navigation context changes
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab as InterviewTab);
+    }
+    if (propInitialMockCategory) {
+      setInitialMockCategory(propInitialMockCategory);
+    }
+  }, [initialTab, propInitialMockCategory]);
+
+  // Load career plan if not passed as prop to synchronize skill gaps & weak topics
+  useEffect(() => {
+    if (careerPlan) {
+      setResolvedCareerPlan(careerPlan);
+    } else if (userId && targetRole) {
+      getSavedCareerPlan(userId, targetRole)
+        .then((plan) => {
+          if (plan) setResolvedCareerPlan(plan);
+        })
+        .catch((err) => {
+          console.warn('Could not load career plan for interview workspace:', err);
+        });
+    }
+  }, [careerPlan, userId, targetRole]);
+
+  // Derive verified skills, missing skills, and weak topics from career roadmap & resume
+  const missingSkillsFromPlan = (resolvedCareerPlan?.skillGaps || [])
+    .filter((g) => g.status === 'missing' || g.status === 'learning')
+    .map((g) => g.name);
+
+  const effectiveMissingSkills = Array.from(
+    new Set([...(initialTargetedGaps || []), ...missingSkillsFromPlan])
+  );
+
+  const effectiveWeakTopics =
+    effectiveMissingSkills.length > 0
+      ? effectiveMissingSkills.slice(0, 8)
+      : ['System Design', 'Dynamic Programming', 'SQL Indexing'];
 
   // Load persistence data on mount
   useEffect(() => {
@@ -230,12 +296,15 @@ export const InterviewIntelligenceWorkspace: React.FC<InterviewIntelligenceWorks
                 academicYear={academicYear}
                 degree={degree}
                 verifiedSkills={verifiedSkills}
-                missingSkills={[]}
+                missingSkills={effectiveMissingSkills}
                 projectsSummary={projectsSummary}
                 onSessionComplete={(completed) => {
                   setSessions((prev) => [completed, ...prev.filter((s) => s.id !== completed.id)]);
                 }}
-                onExit={() => setActiveTab('overview')}
+                onExit={() => {
+                  if (onClearNavContext) onClearNavContext();
+                  setActiveTab('overview');
+                }}
               />
             )}
 
@@ -278,7 +347,7 @@ export const InterviewIntelligenceWorkspace: React.FC<InterviewIntelligenceWorks
                 academicYear={academicYear}
                 degree={degree}
                 verifiedSkills={verifiedSkills}
-                weakTopics={['System Design', 'Dynamic Programming', 'SQL Indexing']}
+                weakTopics={effectiveWeakTopics}
                 recentMockScore={metrics.averageMockScore || undefined}
                 resumeProjects={projectsSummary.map((p) => p.title)}
               />
