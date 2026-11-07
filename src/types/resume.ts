@@ -70,6 +70,10 @@ export type ResumeTemplateId =
   | 'compact'
   | 'executive'
   | 'contemporary-sidebar'
+  // New Premium Templates (CVify.AI inspired)
+  | 'sidebar-pro'
+  | 'creative-cards'
+  | 'accent-minimal'
   // Legacy aliases for backward compatibility with saved drafts
   | 'minimal-cream'
   | 'executive-mono'
@@ -81,6 +85,7 @@ export interface ResumeData {
   title: string;
   updatedAt: string;
   templateId: ResumeTemplateId;
+  accentColor?: string; // Selected theme color (preset hex or custom)
   personalInfo: {
     fullName: string;
     professionalTitle?: string;

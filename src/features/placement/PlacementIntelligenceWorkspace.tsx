@@ -356,6 +356,10 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
                 onSelectJob={(job) => setSelectedJobForDetail(job)}
                 onPrepareApplication={(job) => setSelectedJobForDraft(job)}
                 onTrackJob={handleTrackDiscoveredJob}
+                onAddManualJob={() => {
+                  setEditingApplication(null);
+                  setIsAddModalOpen(true);
+                }}
               />
             )}
 
@@ -386,6 +390,10 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
                 onSelectJob={(job) => setSelectedJobForDetail(job)}
                 onPrepareApplication={(job) => setSelectedJobForDraft(job)}
                 onTrackJob={handleTrackDiscoveredJob}
+                onAddManualJob={() => {
+                  setEditingApplication(null);
+                  setIsAddModalOpen(true);
+                }}
               />
             )}
           </>

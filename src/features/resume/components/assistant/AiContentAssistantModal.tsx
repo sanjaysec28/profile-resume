@@ -118,6 +118,7 @@ export function AiContentAssistantModal({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasUnacceptedChanges, setHasUnacceptedChanges] = useState(false);
+  const [viewMode, setViewMode] = useState<'side-by-side' | 'diff'>('side-by-side');
 
   // Sync initial parameters when opened
   useEffect(() => {
@@ -561,107 +562,194 @@ export function AiContentAssistantModal({
             </div>
           )}
 
-          {/* Staging & Comparison Workspace */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Left: Original / Current Resume Content */}
-            <div className="p-4 rounded-2xl bg-white border border-[#E5E0D8] flex flex-col">
-              <div className="flex items-center justify-between pb-2 border-b border-[#ECE7DE] mb-2.5">
-                <span className="text-xs font-bold text-[#655F55] uppercase tracking-wider">
-                  Current Resume Draft
-                </span>
-                <span className="text-[10px] text-[#888888]">
-                  {originalText.length} characters
-                </span>
-              </div>
-              <div className="flex-1 min-h-[160px] text-xs text-[#444444] whitespace-pre-wrap leading-relaxed bg-[#FAF9F5] p-3 rounded-xl border border-[#EFECE5] font-sans">
-                {originalText.trim() ? (
-                  originalText
-                ) : (
-                  <span className="text-[#999999] italic">
-                    [This section is currently empty in your resume draft]
-                  </span>
-                )}
-              </div>
+          {/* Comparison Mode Selector & Stats Header */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 pb-1">
+            <div className="flex items-center gap-1.5 bg-[#EAE5DC] p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setViewMode('side-by-side')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'side-by-side'
+                    ? 'bg-white text-[#171513] shadow-2xs'
+                    : 'text-[#6A645A] hover:text-[#171513]'
+                }`}
+              >
+                Side-by-Side View
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('diff')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'diff'
+                    ? 'bg-white text-[#171513] shadow-2xs'
+                    : 'text-[#6A645A] hover:text-[#171513]'
+                }`}
+              >
+                Diff &amp; Keyword Alignment
+              </button>
             </div>
 
-            {/* Right: AI Generated Staged Proposal (Editable) */}
-            <div className="p-4 rounded-2xl bg-white border-2 border-[#171513] flex flex-col shadow-xs relative">
-              <div className="flex items-center justify-between pb-2 border-b border-[#ECE7DE] mb-2.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-[#171513] uppercase tracking-wider">
-                    AI Suggested Draft
+            <div className="flex items-center gap-2 text-[11px] text-[#7A7368]">
+              <span>Original: <strong>{originalText.trim() ? originalText.trim().split(/\s+/).length : 0}</strong> words</span>
+              <span>•</span>
+              <span>Suggestion: <strong>{editedGeneratedText.trim() ? editedGeneratedText.trim().split(/\s+/).length : 0}</strong> words</span>
+            </div>
+          </div>
+
+          {/* Staging & Comparison Workspace */}
+          {viewMode === 'side-by-side' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Left: Original / Current Resume Content */}
+              <div className="p-4 rounded-2xl bg-white border border-[#E5E0D8] flex flex-col">
+                <div className="flex items-center justify-between pb-2 border-b border-[#ECE7DE] mb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="text-xs font-bold text-[#171513] uppercase tracking-wider">
+                      Verified Student Entry
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-[#888888] font-mono">
+                    {originalText.length} chars
                   </span>
-                  {hasUnacceptedChanges && (
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
-                      Unsaved Draft
+                </div>
+                <div className="flex-1 min-h-[170px] text-xs text-[#444444] whitespace-pre-wrap leading-relaxed bg-[#FAF9F5] p-3 rounded-xl border border-[#EFECE5] font-sans">
+                  {originalText.trim() ? (
+                    originalText
+                  ) : (
+                    <span className="text-[#999999] italic">
+                      [This section is currently empty in your resume draft]
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] text-[#666666]">
-                  Editable by you
+              </div>
+
+              {/* Right: AI Generated Staged Proposal (Editable) */}
+              <div className="p-4 rounded-2xl bg-white border-2 border-[#171513] flex flex-col shadow-xs relative">
+                <div className="flex items-center justify-between pb-2 border-b border-[#ECE7DE] mb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span className="text-xs font-bold text-[#171513] uppercase tracking-wider">
+                      AI Suggested Revision
+                    </span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                      Requires Approval
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-[#666666]">
+                    Editable before apply
+                  </span>
+                </div>
+
+                <textarea
+                  rows={7}
+                  value={editedGeneratedText}
+                  onChange={(e) => {
+                    setEditedGeneratedText(e.target.value);
+                    setHasUnacceptedChanges(true);
+                  }}
+                  placeholder={
+                    isLoading
+                      ? 'AI is crafting your tailored content...'
+                      : 'Click "Run Assistant" above to generate or improve this section.'
+                  }
+                  className="flex-1 min-h-[170px] w-full text-xs text-[#171513] leading-relaxed p-3 rounded-xl border border-[#D5CEC2] bg-[#FAFDF8] focus:outline-none focus:border-[#171513] font-sans resize-y"
+                />
+
+                {/* Detected Action Verbs & Keywords */}
+                {generatedResult?.detectedActionVerbs && generatedResult.detectedActionVerbs.length > 0 && (
+                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[10px]">
+                    <span className="font-bold text-[#171513]">Action Verbs:</span>
+                    {generatedResult.detectedActionVerbs.map((v, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold"
+                      >
+                        {v}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Strategy Explanation & ATS Note */}
+                {generatedResult?.explanation && (
+                  <div className="mt-2.5 text-[11px] text-[#655F55] bg-[#FAF8F5] p-2.5 rounded-xl border border-[#ECE7DE] space-y-1">
+                    <div>
+                      <strong className="text-[#171513]">Improvement Rationale: </strong>
+                      {generatedResult.explanation}
+                    </div>
+                    {generatedResult.atsScoreImpactNote && (
+                      <div className="text-[#8C6D1F]">
+                        <strong>ATS Alignment: </strong>
+                        {generatedResult.atsScoreImpactNote}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Diff & Keyword Alignment View */
+            <div className="p-4 rounded-2xl bg-white border border-[#E5E0D8] space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-[#ECE7DE]">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-[#171513] uppercase tracking-wider">
+                    Content Diff &amp; Role-Targeting Analysis
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    Truthful Guard Active
+                  </span>
+                </div>
+                <span className="text-xs text-[#8C6D1F] font-semibold">
+                  Target: {resumeSetup?.targetRole?.title || 'Software Engineer'}
                 </span>
               </div>
 
-              <textarea
-                rows={7}
-                value={editedGeneratedText}
-                onChange={(e) => {
-                  setEditedGeneratedText(e.target.value);
-                  setHasUnacceptedChanges(true);
-                }}
-                placeholder={
-                  isLoading
-                    ? 'AI is crafting your tailored content...'
-                    : 'Click "Run Assistant" above to generate or improve this section.'
-                }
-                className="flex-1 min-h-[160px] w-full text-xs text-[#171513] leading-relaxed p-3 rounded-xl border border-[#D5CEC2] bg-[#FAFDF8] focus:outline-none focus:border-[#171513] font-sans resize-y"
-              />
-
-              {/* Detected placeholders chip row */}
-              {generatedResult?.placeholdersUsed && generatedResult.placeholdersUsed.length > 0 && (
-                <div className="mt-2.5 p-2 rounded-xl bg-amber-50/70 border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
-                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold">Verify placeholders: </span>
-                    <span>Replace bracketed placeholders with true values: </span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {generatedResult.placeholdersUsed.map((p, idx) => (
-                        <span
-                          key={idx}
-                          className="px-1.5 py-0.5 rounded bg-white font-mono text-[10px] font-bold border border-amber-300"
-                        >
-                          {p}
-                        </span>
-                      ))}
-                    </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* Original Snippet */}
+                <div className="space-y-1.5">
+                  <span className="font-bold text-[#655F55] block">Original Candidate Text:</span>
+                  <div className="p-3 rounded-xl bg-rose-50/50 border border-rose-200 text-[#444444] whitespace-pre-wrap leading-relaxed min-h-[140px]">
+                    {originalText.trim() || <span className="italic text-gray-400">[Empty original text]</span>}
                   </div>
                 </div>
-              )}
 
-              {/* Strategy Explanation & ATS Note */}
-              {generatedResult?.explanation && (
-                <div className="mt-2.5 text-[11px] text-[#655F55] bg-[#FAF8F5] p-2.5 rounded-xl border border-[#ECE7DE] space-y-1">
-                  <div>
-                    <strong className="text-[#171513]">Rationale: </strong>
-                    {generatedResult.explanation}
+                {/* Suggested Improvement with Verb Highlights */}
+                <div className="space-y-1.5">
+                  <span className="font-bold text-[#171513] block">AI Suggested Revision (Approved Language):</span>
+                  <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-200 text-[#171513] whitespace-pre-wrap leading-relaxed min-h-[140px]">
+                    {editedGeneratedText.trim() ? (
+                      editedGeneratedText
+                    ) : (
+                      <span className="italic text-gray-400">[Click "Run Assistant" to generate a tailored proposal]</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Rationale and Alignment Breakdown */}
+              {generatedResult && (
+                <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#ECE7DE] text-xs space-y-1.5">
+                  <div className="flex items-start gap-2">
+                    <span className="font-bold text-[#171513] shrink-0">Why this was improved:</span>
+                    <span className="text-[#555555]">{generatedResult.explanation}</span>
                   </div>
                   {generatedResult.atsScoreImpactNote && (
-                    <div className="text-[#8C6D1F]">
-                      <strong>ATS Alignment: </strong>
-                      {generatedResult.atsScoreImpactNote}
+                    <div className="flex items-start gap-2 text-[#8C6D1F]">
+                      <span className="font-bold shrink-0">ATS Keyword Impact:</span>
+                      <span>{generatedResult.atsScoreImpactNote}</span>
                     </div>
                   )}
                 </div>
               )}
             </div>
-          </div>
+          )}
 
           {/* Anti-Hallucination & Factual Guarantee Card */}
           <div className="p-3.5 rounded-2xl bg-[#F4F1EA] border border-[#DDD6C9] flex items-center justify-between gap-3 text-xs text-[#524E48]">
             <div className="flex items-center gap-2.5">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>
-                <strong>Strict Student Control:</strong> Content is never saved to your resume until you click <em>"Accept &amp; Apply"</em>. Never make false claims or state unverified qualifications.
+                <strong>Truthful AI Guarantee:</strong> ProFile never invents companies, grades, or fake metrics. All content suggestions require your explicit review and approval before being saved to your resume.
               </span>
             </div>
           </div>

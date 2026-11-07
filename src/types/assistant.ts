@@ -62,6 +62,9 @@ export interface ContentAssistantResponse {
   modelUsed?: string;
   generationSource?: 'gemini' | 'structured-fallback';
   isAiGenerated?: boolean;
+  detectedActionVerbs?: string[];
+  targetRoleKeywords?: string[];
+  truthfulGuaranteeVerified?: boolean;
 }
 
 export interface SectionConfigItem {

@@ -9,7 +9,7 @@
  * - Right Panel: Live A4 Resume Preview Document
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { ResumeData, ResumeProject, ResumeExperience, ResumeLeadership } from '../../../types/resume.ts';
 import { INITIAL_RESUME_DATA } from '../constants.ts';
@@ -55,6 +55,15 @@ import {
   X,
 } from 'lucide-react';
 import { exportResumeToPdf } from '../utils/pdfExport.ts';
+import {
+  sanitizeResumeData,
+  validateResumeForExport,
+  cleanUnresolvedPlaceholders,
+  filterRefusalAndConversationalText,
+  deduplicateBulletPoints,
+  auditResumeContentQuality,
+} from '../utils/resumeSanitizer.ts';
+import { ResumeQualityReviewModal } from './ResumeQualityReviewModal.tsx';
 import { Logo } from '../../../components/ui/Logo.tsx';
 import { Navbar } from '../../../components/layout/Navbar.tsx';
 import { SocialFooter } from '../../../components/layout/SocialFooter.tsx';
@@ -138,6 +147,15 @@ export function ResumeBuilder({
   const [cachedRecommendations, setCachedRecommendations] = useState<ResumeRecommendationsData | null>(
     recommendations || null
   );
+
+  // Phase D.5.2: Content Quality Validation & Non-Destructive Review State
+  const [isQualityModalOpen, setIsQualityModalOpen] = useState(false);
+  const [pendingProceedAction, setPendingProceedAction] = useState<(() => void) | null>(null);
+  const [pendingProceedLabel, setPendingProceedLabel] = useState<string | undefined>(undefined);
+
+  const qualityReport = useMemo(() => {
+    return auditResumeContentQuality(resumeData, resumeSetup?.targetRole?.title);
+  }, [resumeData, resumeSetup?.targetRole?.title]);
 
   // FIX 4 & Phase D.3.3: State for ATS keyword handoff and intelligent recommendation actions
   const [selectedAtsSkills, setSelectedAtsSkills] = useState<Record<string, boolean>>({});
@@ -354,6 +372,13 @@ export function ResumeBuilder({
     bulletPoints?: string[];
     itemId?: string;
   }) => {
+    const cleanText = cleanUnresolvedPlaceholders(
+      filterRefusalAndConversationalText(result.text)
+    );
+    const cleanBullets = result.bulletPoints
+      ? deduplicateBulletPoints(result.bulletPoints, cleanText)
+      : undefined;
+
     setResumeData((prev) => {
       switch (result.section) {
         case 'summary':
@@ -361,14 +386,14 @@ export function ResumeBuilder({
             ...prev,
             personalInfo: {
               ...prev.personalInfo,
-              summary: result.text,
+              summary: cleanText,
             },
           };
         case 'technical_skills': {
-          const skillsList = result.text
+          const skillsList = cleanText
             .split(/[\n,•]/)
             .map((s) => s.trim())
-            .filter(Boolean);
+            .filter((s) => s.length > 0 && !s.includes('['));
           return {
             ...prev,
             skills: {
@@ -378,10 +403,10 @@ export function ResumeBuilder({
           };
         }
         case 'soft_skills': {
-          const skillsList = result.text
+          const skillsList = cleanText
             .split(/[\n,•]/)
             .map((s) => s.trim())
-            .filter(Boolean);
+            .filter((s) => s.length > 0 && !s.includes('['));
           return {
             ...prev,
             skills: {
@@ -398,8 +423,8 @@ export function ResumeBuilder({
                 p.id === result.itemId
                   ? {
                       ...p,
-                      description: result.text,
-                      bullets: result.bulletPoints || p.bullets,
+                      description: cleanText,
+                      bullets: cleanBullets || p.bullets,
                     }
                   : p
               ),
@@ -409,7 +434,7 @@ export function ResumeBuilder({
               ...prev,
               projects: prev.projects.map((p, idx) =>
                 idx === 0
-                  ? { ...p, description: result.text, bullets: result.bulletPoints || p.bullets }
+                  ? { ...p, description: cleanText, bullets: cleanBullets || p.bullets }
                   : p
               ),
             };
@@ -417,8 +442,8 @@ export function ResumeBuilder({
             const newP: ResumeProject = {
               id: `proj-${Date.now()}`,
               title: 'Featured Project',
-              description: result.text,
-              bullets: result.bulletPoints,
+              description: cleanText,
+              bullets: cleanBullets,
               techStack: [],
             };
             return {
@@ -435,8 +460,8 @@ export function ResumeBuilder({
                 e.id === result.itemId
                   ? {
                       ...e,
-                      description: result.text,
-                      bullets: result.bulletPoints || e.bullets,
+                      description: cleanText,
+                      bullets: cleanBullets || e.bullets,
                     }
                   : e
               ),
@@ -446,7 +471,7 @@ export function ResumeBuilder({
               ...prev,
               experience: prev.experience.map((e, idx) =>
                 idx === 0
-                  ? { ...e, description: result.text, bullets: result.bulletPoints || e.bullets }
+                  ? { ...e, description: cleanText, bullets: cleanBullets || e.bullets }
                   : e
               ),
             };
@@ -457,8 +482,8 @@ export function ResumeBuilder({
               position: resumeSetup?.targetRole.title || 'Intern',
               startDate: '',
               endDate: '',
-              description: result.text,
-              bullets: result.bulletPoints,
+              description: cleanText,
+              bullets: cleanBullets,
             };
             return {
               ...prev,
@@ -555,12 +580,14 @@ export function ResumeBuilder({
   // Sync to local storage and Cloud Firestore
   const handleSaveDraft = async () => {
     try {
-      localStorage.setItem('profile_resume_draft', JSON.stringify(resumeData));
-      onResumeDataChange?.(resumeData);
+      const sanitized = sanitizeResumeData(resumeData);
+      setResumeData(sanitized);
+      localStorage.setItem('profile_resume_draft', JSON.stringify(sanitized));
+      onResumeDataChange?.(sanitized);
 
       if (userId) {
         setCloudStatus('saving');
-        const success = await saveResumeToCloud(userId, resumeData);
+        const success = await saveResumeToCloud(userId, sanitized);
         if (success) {
           setCloudStatus('saved');
           showToast('Resume draft saved securely to Cloud Firestore!');
@@ -611,10 +638,15 @@ export function ResumeBuilder({
     };
   }, [isMobilePreviewOpen]);
 
-  const handleDownloadPdf = async () => {
+  const executeActualDownloadPdf = async () => {
     if (isExportingPdf) return;
     setIsExportingPdf(true);
-    setExportProgressText('Preparing PDF export...');
+    setExportProgressText('Validating and preparing PDF export...');
+
+    // Validate and sanitize resume before PDF capture
+    const validation = validateResumeForExport(resumeData);
+    const sanitizedToExport = validation.sanitized;
+    setResumeData(sanitizedToExport);
 
     const targetElementId = isFinalPreviewOpen
       ? 'resume-final-preview-document'
@@ -622,7 +654,7 @@ export function ResumeBuilder({
 
     const result = await exportResumeToPdf({
       elementId: targetElementId,
-      fullName: resumeData.personalInfo.fullName,
+      fullName: sanitizedToExport.personalInfo.fullName,
       onProgress: (_step, msg) => {
         setExportProgressText(msg);
       },
@@ -636,6 +668,17 @@ export function ResumeBuilder({
     } else {
       showToast(`Export failed: ${result.error || 'Please try again'}`);
     }
+  };
+
+  const handleDownloadPdf = async () => {
+    // If critical issues or unresolved placeholders exist, give student full review control before export
+    if (qualityReport.summary.criticalCount > 0 || qualityReport.summary.placeholdersCount > 0) {
+      setPendingProceedAction(() => executeActualDownloadPdf);
+      setPendingProceedLabel('Proceed with PDF Export');
+      setIsQualityModalOpen(true);
+      return;
+    }
+    await executeActualDownloadPdf();
   };
 
   const currentStepInfo = RESUME_STEPS.find((s) => s.id === activeStep) || RESUME_STEPS[0];
@@ -736,6 +779,32 @@ export function ResumeBuilder({
                 </div>
               </button>
             )}
+
+            {/* 4. Content Quality Audit Status Indicator */}
+            <button
+              type="button"
+              onClick={() => {
+                setPendingProceedAction(null);
+                setPendingProceedLabel(undefined);
+                setIsQualityModalOpen(true);
+              }}
+              className={`inline-flex items-center gap-2 h-11 px-3.5 sm:px-4 rounded-xl border text-xs font-semibold shadow-2xs transition-colors cursor-pointer select-none shrink-0 ${
+                qualityReport.isClean
+                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900 hover:bg-emerald-100/60'
+                  : 'bg-amber-50/70 border-amber-200 text-amber-900 hover:bg-amber-100/60'
+              }`}
+              title="Inspect duplicate bullets, placeholders, and content quality"
+            >
+              <ShieldCheck className={`w-4 h-4 shrink-0 ${qualityReport.isClean ? 'text-emerald-600' : 'text-amber-600'}`} />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[10px] uppercase tracking-wider block font-bold">
+                  {qualityReport.isClean ? 'Audit Clean' : `Quality ${qualityReport.overallScore}%`}
+                </span>
+                <span className="font-semibold text-xs block truncate">
+                  {qualityReport.isClean ? '100% Ready' : `${qualityReport.issues.length} items to check`}
+                </span>
+              </div>
+            </button>
           </div>
 
           {/* ROW 2: Resume Actions (Exactly 7 items in order) */}
@@ -1444,6 +1513,9 @@ export function ResumeBuilder({
         onSelectTemplate={(tplId) => {
           setResumeData((prev) => ({ ...prev, templateId: tplId }));
         }}
+        onSelectColor={(color) => {
+          setResumeData((prev) => ({ ...prev, accentColor: color }));
+        }}
         onOpenReview={handleOpenReview}
       />
 
@@ -1485,6 +1557,24 @@ export function ResumeBuilder({
         itemContext={assistantItemContext}
         atsFindingContext={assistantAtsFinding}
         onApplyContent={handleApplyAssistantContent}
+      />
+
+      {/* RESUME CONTENT QUALITY REVIEW MODAL (PHASE D.5.2) */}
+      <ResumeQualityReviewModal
+        isOpen={isQualityModalOpen}
+        onClose={() => {
+          setIsQualityModalOpen(false);
+          setPendingProceedAction(null);
+          setPendingProceedLabel(undefined);
+        }}
+        resumeData={resumeData}
+        onUpdateResumeData={(newData) => {
+          setResumeData(newData);
+          showToast('Updated resume content with quality fixes!');
+        }}
+        onProceedAction={pendingProceedAction || undefined}
+        proceedActionLabel={pendingProceedLabel}
+        targetRole={resumeSetup?.targetRole?.title}
       />
 
       {/* SECTION MANAGEMENT MODAL (PHASE 3) */}

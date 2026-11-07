@@ -10,8 +10,10 @@ import {
   LEGACY_RESUME_TEMPLATES,
   RESUME_TEMPLATES_CATALOG,
   ResumeTemplateInfo,
+  THEME_COLOR_PRESETS,
+  DEFAULT_ACCENT_COLOR,
 } from '../../constants.ts';
-import { Check, ShieldCheck, Eye, Sparkles, AlertCircle } from 'lucide-react';
+import { Check, ShieldCheck, Eye, Sparkles, AlertCircle, Palette } from 'lucide-react';
 
 interface TemplateSelectStepProps {
   data: ResumeData;
@@ -25,11 +27,19 @@ export function TemplateSelectStep({
   onGeneratePreview,
 }: TemplateSelectStepProps) {
   const currentTemplate = data.templateId || 'modern';
+  const activeAccentColor = data.accentColor || DEFAULT_ACCENT_COLOR;
 
   const handleSelect = (id: ResumeTemplateId) => {
     onChange((prev) => ({
       ...prev,
       templateId: id,
+    }));
+  };
+
+  const handleColorChange = (hex: string) => {
+    onChange((prev) => ({
+      ...prev,
+      accentColor: hex,
     }));
   };
 
@@ -41,6 +51,11 @@ export function TemplateSelectStep({
     RESUME_TEMPLATES_CATALOG.find((t) => t.id === currentTemplate) ||
     ACTIVE_RESUME_TEMPLATES[0];
 
+  const activePreset = THEME_COLOR_PRESETS.find(
+    (p) => p.hex.toLowerCase() === activeAccentColor.toLowerCase()
+  );
+  const isCustomColor = !activePreset;
+
   return (
     <div className="space-y-6">
       {/* Header & ATS Guarantee Badge */}
@@ -48,7 +63,7 @@ export function TemplateSelectStep({
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-base font-bold text-[#101010]">
-              Choose from 5 Curated Professional Resume Layouts
+              Choose from 8 Curated Professional Resume Layouts
             </h3>
             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#101010] text-white">
               <Sparkles className="w-2.5 h-2.5 text-amber-300" />
@@ -56,13 +71,13 @@ export function TemplateSelectStep({
             </span>
           </div>
           <p className="text-xs text-[#777777] mt-0.5">
-            The top 5 recruiter-tested, ATS-friendly templates optimized for tech internships, campus placements, and corporate roles.
+            The top 8 recruiter-tested templates optimized for tech internships, campus placements, and modern corporate applications.
           </p>
         </div>
 
         <div className="flex items-center gap-1.5 px-3 py-1 bg-[#EBF5EE] text-[#1E5631] border border-[#CDE5D2] rounded-xl self-start sm:self-auto text-xs font-semibold">
           <ShieldCheck className="w-3.5 h-3.5 text-[#1E5631]" />
-          <span>94%–99% ATS Parse Rate</span>
+          <span>92%–99% ATS Parse Rate</span>
         </div>
       </div>
 
@@ -76,15 +91,15 @@ export function TemplateSelectStep({
                 Legacy Layout Active: {activeTemplateInfo.name}
               </span>
               <p className="text-[11px] text-[#777777] mt-0.5">
-                This resume is saved with the legacy <strong className="text-[#101010]">{activeTemplateInfo.name}</strong> template. Its styling and content are fully preserved. You can keep it as-is or switch to any of the 5 curated templates below.
+                This resume is saved with the legacy <strong className="text-[#101010]">{activeTemplateInfo.name}</strong> template. Its styling and content are fully preserved. You can keep it as-is or switch to any of the 8 curated templates below.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Active 5-Template Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
+      {/* Active 8-Template Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3.5 sm:gap-4">
         {ACTIVE_RESUME_TEMPLATES.map((tpl) => {
           const isSelected =
             currentTemplate === tpl.id ||
@@ -147,6 +162,71 @@ export function TemplateSelectStep({
             </div>
           );
         })}
+      </div>
+
+      {/* Colour Theme Customizer */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#E5E0D8] shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#F0ECE3]">
+          <div>
+            <h4 className="text-xs sm:text-sm font-bold text-[#101010] flex items-center gap-2">
+              <Palette className="w-4 h-4 text-[#101010]" />
+              <span>Colour Theme Customization</span>
+              <span
+                className="w-3.5 h-3.5 rounded-full inline-block shadow-2xs border border-black/10"
+                style={{ backgroundColor: activeAccentColor }}
+              />
+            </h4>
+            <p className="text-[11px] text-[#777777] mt-0.5">
+              Customizes headings, dividers, skill badges, icons, and sidebar styling for your selected template.
+            </p>
+          </div>
+          <span className="text-[11px] font-mono font-semibold px-2.5 py-1 rounded-md bg-[#FAF7F2] border border-[#E8DEC8] text-[#8C6D1F] self-start sm:self-auto">
+            {activePreset ? activePreset.name : `Custom (${activeAccentColor.toUpperCase()})`}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 pt-3">
+          {THEME_COLOR_PRESETS.map((preset) => {
+            const isPresetActive = activeAccentColor.toLowerCase() === preset.hex.toLowerCase();
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => handleColorChange(preset.hex)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer select-none ${
+                  isPresetActive
+                    ? 'border-[#101010] bg-[#FAF8F5] shadow-xs ring-2 ring-[#101010]'
+                    : 'border-[#E5E0D8] bg-white hover:bg-[#FAF9F5] hover:border-[#CCCCCC]'
+                }`}
+              >
+                <span
+                  className="w-3.5 h-3.5 rounded-full shadow-2xs shrink-0 border border-black/10"
+                  style={{ backgroundColor: preset.hex }}
+                />
+                <span className="text-[#222222]">{preset.name}</span>
+                {isPresetActive && <Check className="w-3 h-3 text-[#101010] stroke-[3] ml-0.5" />}
+              </button>
+            );
+          })}
+
+          {/* Custom Colour Picker Input */}
+          <label
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer select-none ${
+              isCustomColor
+                ? 'border-[#101010] bg-[#FAF8F5] shadow-xs ring-2 ring-[#101010]'
+                : 'border-[#E5E0D8] bg-white hover:bg-[#FAF9F5] hover:border-[#CCCCCC]'
+            }`}
+          >
+            <input
+              type="color"
+              value={activeAccentColor}
+              onChange={(e) => handleColorChange(e.target.value)}
+              className="w-4 h-4 rounded-full cursor-pointer border-0 p-0 overflow-hidden"
+            />
+            <span className="text-[#222222]">Custom Picker</span>
+            {isCustomColor && <Check className="w-3 h-3 text-[#101010] stroke-[3] ml-0.5" />}
+          </label>
+        </div>
       </div>
 
       {/* Selected Template Details Card */}
@@ -434,6 +514,88 @@ function TemplateMiniatureThumbnail({ template }: { template: ResumeTemplateInfo
         </div>
       )}
 
+      {/* 11. Sidebar Pro (Coloured Left Sidebar & Right Content) */}
+      {id === 'sidebar-pro' && (
+        <div className="w-full h-full flex gap-1 -m-2">
+          <div className="w-[38%] bg-[#2563EB] p-1.5 flex flex-col justify-between text-white">
+            <div className="space-y-1">
+              <div className="w-4 h-4 rounded-full bg-white/40 mx-auto" />
+              <div className="h-1 w-full bg-white rounded-xs mt-0.5" />
+              <div className="h-0.5 w-3/4 bg-white/70 rounded-xs mx-auto" />
+              <div className="pt-0.5 space-y-0.5">
+                <div className="h-0.5 w-full bg-white/40 rounded-xs" />
+                <div className="h-0.5 w-4/5 bg-white/40 rounded-xs" />
+              </div>
+            </div>
+            <div className="space-y-0.5 pt-1">
+              <div className="h-0.5 w-6 bg-white/80 rounded-xs" />
+              <div className="h-0.5 w-full bg-white/50 rounded-xs" />
+            </div>
+          </div>
+          <div className="w-[62%] p-1.5 pl-1 flex flex-col justify-between py-1">
+            <div className="space-y-1">
+              <div className="h-1 w-10 bg-[#2563EB] rounded-xs" />
+              <div className="h-0.5 w-full bg-[#D1C8BA] rounded-xs" />
+              <div className="h-0.5 w-5/6 bg-[#E0D8CB] rounded-xs" />
+            </div>
+            <div className="space-y-1">
+              <div className="h-1 w-12 bg-[#2563EB] rounded-xs" />
+              <div className="h-0.5 w-full bg-[#D1C8BA] rounded-xs" />
+              <div className="h-0.5 w-4/5 bg-[#E0D8CB] rounded-xs" />
+            </div>
+            <div className="space-y-0.5">
+              <div className="h-1 w-8 bg-[#2563EB] rounded-xs" />
+              <div className="h-0.5 w-full bg-[#D1C8BA] rounded-xs" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 12. Creative Cards (Cream Canvas with Modular Rounded Cards) */}
+      {id === 'creative-cards' && (
+        <div className="w-full h-full bg-[#FAF8F5] -m-2 p-1.5 flex flex-col justify-between gap-1">
+          <div className="bg-white p-1 rounded-xs border border-[#E5E0D8] space-y-0.5 shadow-2xs">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-[#2563EB]/40" />
+              <div className="h-1 w-10 bg-[#101010] rounded-xs" />
+            </div>
+            <div className="h-0.5 w-full bg-[#B8B0A2] rounded-xs" />
+          </div>
+          <div className="bg-white p-1 rounded-xs border border-[#E5E0D8] space-y-0.5 flex-1 shadow-2xs">
+            <div className="h-0.5 w-8 bg-[#2563EB] rounded-xs" />
+            <div className="h-0.5 w-full bg-[#D1C8BA] rounded-xs" />
+            <div className="h-0.5 w-4/5 bg-[#E0D8CB] rounded-xs" />
+          </div>
+          <div className="bg-white p-1 rounded-xs border border-[#E5E0D8] space-y-0.5 shadow-2xs">
+            <div className="h-0.5 w-6 bg-[#2563EB] rounded-xs" />
+            <div className="h-0.5 w-full bg-[#D1C8BA] rounded-xs" />
+          </div>
+        </div>
+      )}
+
+      {/* 13. Accent Minimal (Single-Column with Coloured Divider Bar) */}
+      {id === 'accent-minimal' && (
+        <div className="w-full h-full flex flex-col justify-between">
+          <div className="space-y-0.5">
+            <div className="h-1.5 w-14 bg-[#101010] rounded-xs" />
+            <div className="h-0.5 w-8 bg-[#777777] rounded-xs" />
+            <div className="h-0.5 w-full bg-[#2563EB] rounded-full my-0.5" />
+          </div>
+          <div className="space-y-1 py-0.5">
+            <div className="space-y-0.5">
+              <div className="h-1 w-10 bg-[#2563EB] rounded-xs" />
+              <div className="h-0.5 w-full bg-[#D1C8BA] rounded-xs" />
+              <div className="h-0.5 w-4/5 bg-[#E0D8CB] rounded-xs" />
+            </div>
+            <div className="space-y-0.5">
+              <div className="h-1 w-8 bg-[#2563EB] rounded-xs" />
+              <div className="h-0.5 w-full bg-[#D1C8BA] rounded-xs" />
+            </div>
+          </div>
+          <div className="h-0.5 w-full bg-[#E5E0D8] rounded-xs" />
+        </div>
+      )}
+
       {/* 10. Modern (Default clean sans, hairline divider) */}
       {(id === 'modern' || (![
         'contemporary-sidebar',
@@ -445,6 +607,9 @@ function TemplateMiniatureThumbnail({ template }: { template: ResumeTemplateInfo
         'academic',
         'compact',
         'executive',
+        'sidebar-pro',
+        'creative-cards',
+        'accent-minimal',
       ].includes(id))) && (
         <div className="w-full h-full flex flex-col justify-between">
           <div className="space-y-0.5">

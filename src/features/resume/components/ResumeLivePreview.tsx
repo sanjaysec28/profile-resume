@@ -18,6 +18,11 @@
 
 import React from 'react';
 import { ResumeData, ResumeTemplateId } from '../../../types/resume.ts';
+import { DEFAULT_ACCENT_COLOR, getSidebarBackgroundColor } from '../constants.ts';
+import { SidebarProTemplate } from './templates/SidebarProTemplate.tsx';
+import { CreativeCardsTemplate } from './templates/CreativeCardsTemplate.tsx';
+import { AccentMinimalTemplate } from './templates/AccentMinimalTemplate.tsx';
+import { sanitizeResumeData } from '../utils/resumeSanitizer.ts';
 
 interface ResumeLivePreviewProps {
   data: ResumeData;
@@ -74,6 +79,7 @@ export function ResumeLivePreview({
   isPrintMode = false,
   id = 'resume-a4-document',
 }: ResumeLivePreviewProps) {
+  const sanitizedData = React.useMemo(() => sanitizeResumeData(data), [data]);
   const {
     personalInfo,
     education,
@@ -87,7 +93,11 @@ export function ResumeLivePreview({
     customHeadings = {},
     sectionVisibility = {},
     templateId = 'modern',
-  } = data;
+    accentColor: userAccentColor,
+  } = sanitizedData;
+
+  const accentColor = userAccentColor || DEFAULT_ACCENT_COLOR;
+  const sidebarBg = getSidebarBackgroundColor(accentColor);
 
   // Normalize legacy template aliases for backward compatibility
   const activeTemplate: ResumeTemplateId =
@@ -206,13 +216,15 @@ export function ResumeLivePreview({
     const website = personalInfo.website?.trim();
 
     const items: React.ReactNode[] = [];
+    const isLightText = textColor.includes('white') || textColor.includes('#FFF') || textColor.includes('255');
+    const linkHoverClass = isLightText ? 'hover:opacity-80' : 'hover:text-[#101010]';
 
     if (email) {
       items.push(
         <a
           key="email"
           href={`mailto:${email}`}
-          className={`${textColor} hover:text-[#101010] hover:underline underline-offset-2 break-words [overflow-wrap:anywhere]`}
+          className={`${textColor} ${linkHoverClass} hover:underline underline-offset-2 break-words [overflow-wrap:anywhere]`}
         >
           {email}
         </a>
@@ -224,7 +236,7 @@ export function ResumeLivePreview({
         <a
           key="phone"
           href={`tel:${phone.replace(/\s+/g, '')}`}
-          className={`${textColor} hover:text-[#101010] whitespace-nowrap`}
+          className={`${textColor} ${linkHoverClass} whitespace-nowrap`}
         >
           {phone}
         </a>
@@ -246,7 +258,7 @@ export function ResumeLivePreview({
           href={toSafeUrl(linkedin)}
           target="_blank"
           rel="noreferrer"
-          className={`font-medium ${textColor} hover:text-[#101010] hover:underline underline-offset-2 break-words`}
+          className={`font-medium ${textColor} ${linkHoverClass} hover:underline underline-offset-2 break-words`}
           title={linkedin}
         >
           LinkedIn
@@ -261,7 +273,7 @@ export function ResumeLivePreview({
           href={toSafeUrl(github)}
           target="_blank"
           rel="noreferrer"
-          className={`font-medium ${textColor} hover:text-[#101010] hover:underline underline-offset-2 break-words`}
+          className={`font-medium ${textColor} ${linkHoverClass} hover:underline underline-offset-2 break-words`}
           title={github}
         >
           GitHub
@@ -276,7 +288,7 @@ export function ResumeLivePreview({
           href={toSafeUrl(website)}
           target="_blank"
           rel="noreferrer"
-          className={`font-medium ${textColor} hover:text-[#101010] hover:underline underline-offset-2 break-words`}
+          className={`font-medium ${textColor} ${linkHoverClass} hover:underline underline-offset-2 break-words`}
           title={website}
         >
           Portfolio
@@ -429,6 +441,72 @@ export function ResumeLivePreview({
       </>
     );
   };
+
+  /* =========================================================================
+   * TEMPLATE 06: SIDEBAR PRO (Two-Column Layout with Coloured Sidebar)
+   * ========================================================================= */
+  if (activeTemplate === 'sidebar-pro') {
+    return (
+      <SidebarProTemplate
+        id={id}
+        data={sanitizedData}
+        accentColor={accentColor}
+        sidebarBg={sidebarBg}
+        baseA4Style={baseA4Style}
+        className={className}
+        isPrintMode={isPrintMode}
+        shouldRenderPhoto={shouldRenderPhoto}
+        toSafeUrl={toSafeUrl}
+        ProjectLinks={ProjectLinks}
+        ContactItems={ContactItems}
+        renderAdditionalSections={renderAdditionalSections}
+      />
+    );
+  }
+
+  /* =========================================================================
+   * TEMPLATE 07: CREATIVE CARDS (Warm Cream Canvas & Rounded Section Cards)
+   * ========================================================================= */
+  if (activeTemplate === 'creative-cards') {
+    return (
+      <CreativeCardsTemplate
+        id={id}
+        data={sanitizedData}
+        accentColor={accentColor}
+        sidebarBg={sidebarBg}
+        baseA4Style={baseA4Style}
+        className={className}
+        isPrintMode={isPrintMode}
+        shouldRenderPhoto={shouldRenderPhoto}
+        toSafeUrl={toSafeUrl}
+        ProjectLinks={ProjectLinks}
+        ContactItems={ContactItems}
+        renderAdditionalSections={renderAdditionalSections}
+      />
+    );
+  }
+
+  /* =========================================================================
+   * TEMPLATE 08: ACCENT MINIMAL (Single-Column with Coloured Horizontal Bar)
+   * ========================================================================= */
+  if (activeTemplate === 'accent-minimal') {
+    return (
+      <AccentMinimalTemplate
+        id={id}
+        data={sanitizedData}
+        accentColor={accentColor}
+        sidebarBg={sidebarBg}
+        baseA4Style={baseA4Style}
+        className={className}
+        isPrintMode={isPrintMode}
+        shouldRenderPhoto={shouldRenderPhoto}
+        toSafeUrl={toSafeUrl}
+        ProjectLinks={ProjectLinks}
+        ContactItems={ContactItems}
+        renderAdditionalSections={renderAdditionalSections}
+      />
+    );
+  }
 
   /* =========================================================================
    * TEMPLATE 10: CONTEMPORARY SIDEBAR (Two-Column Layout)
@@ -748,10 +826,10 @@ export function ResumeLivePreview({
               />
             </div>
           )}
-          <h1 className="text-2xl font-bold uppercase tracking-wider text-[#101010] break-words">
+          <h1 className="text-[32px] sm:text-[34px] font-bold uppercase tracking-wider text-[#101010] break-words leading-tight">
             {personalInfo.fullName || 'Candidate Name'}
           </h1>
-          <p className="text-xs italic text-[#555555] break-words">
+          <p className="text-[16px] italic text-[#555555] mt-1 break-words">
             {personalInfo.professionalTitle || 'Target Career Title'}
           </p>
           <div className="flex justify-center pt-0.5">
@@ -996,11 +1074,11 @@ export function ResumeLivePreview({
                 <span className="font-mono text-xs px-2 py-0.5 bg-[#101010] text-[#F8F5EE] rounded font-bold shrink-0">
                   DEV
                 </span>
-                <h1 className="text-2xl font-bold tracking-tight text-[#101010] break-words">
+                <h1 className="text-[32px] sm:text-[34px] font-bold tracking-tight text-[#101010] break-words leading-tight">
                   {personalInfo.fullName || 'Candidate Name'}
                 </h1>
               </div>
-              <p className="text-xs font-mono font-medium text-[#555555] mt-1 break-words">
+              <p className="text-[15px] font-mono font-medium text-[#555555] mt-1 break-words">
                 $ role: {personalInfo.professionalTitle || 'Software Engineer'}
               </p>
             </div>
@@ -1459,10 +1537,10 @@ export function ResumeLivePreview({
               />
             )}
             <div className="min-w-0 flex-1">
-              <h1 className="text-xl font-black uppercase tracking-tight text-[#101010] break-words">
+              <h1 className="text-[28px] sm:text-[32px] font-black uppercase tracking-tight text-[#101010] break-words leading-tight">
                 {personalInfo.fullName || 'Candidate Name'}
               </h1>
-              <span className="text-[11px] font-semibold text-[#555555] break-words block">
+              <span className="text-[14px] font-semibold text-[#555555] break-words block mt-0.5">
                 {personalInfo.professionalTitle || 'Target Career Title'}
               </span>
             </div>
@@ -2333,10 +2411,10 @@ export function ResumeLivePreview({
       >
         <div className="flex items-start justify-between gap-4 pb-4 resume-section break-inside-avoid">
           <div className="space-y-1 min-w-0 flex-1">
-            <h1 className="text-2xl font-light tracking-tight text-[#101010] break-words">
+            <h1 className="text-[32px] sm:text-[34px] font-medium tracking-tight text-[#101010] break-words leading-tight">
               {personalInfo.fullName || 'Candidate Name'}
             </h1>
-            <p className="text-xs text-[#777777] font-medium tracking-wide break-words">
+            <p className="text-[15px] text-[#666666] font-medium tracking-wide break-words mt-1">
               {personalInfo.professionalTitle || 'Target Career Title'}
             </p>
             <div className="pt-1">
@@ -2530,10 +2608,10 @@ export function ResumeLivePreview({
               />
             )}
             <div className="min-w-0 flex-1">
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#101010] uppercase break-words">
+              <h1 className="text-[32px] sm:text-[34px] font-black tracking-tight text-[#101010] uppercase break-words leading-tight">
                 {personalInfo.fullName || 'Candidate Name'}
               </h1>
-              <p className="text-sm font-semibold text-[#555555] mt-0.5 break-words">
+              <p className="text-[16px] font-semibold text-[#555555] mt-1 break-words">
                 {personalInfo.professionalTitle || 'Target Career Title'}
               </p>
             </div>
@@ -2561,7 +2639,7 @@ export function ResumeLivePreview({
         {/* Education */}
         {education && education.length > 0 && (
           <div className="resume-section">
-            <h2 className="resume-section-header break-after-avoid text-[11px] font-bold tracking-wider uppercase text-[#101010] pb-1 border-b border-[#E5E0D8] mb-2 flex justify-between items-center">
+            <h2 className="resume-section-header break-after-avoid text-[15px] font-bold tracking-wider uppercase text-[#101010] pb-1 border-b border-[#E5E0D8] mb-2 flex justify-between items-center">
               <span>Education</span>
             </h2>
             <div className="space-y-2.5">
@@ -2593,7 +2671,7 @@ export function ResumeLivePreview({
         {((skills.technical && skills.technical.length > 0) ||
           (skills.soft && skills.soft.length > 0)) && (
           <div className="resume-section break-inside-avoid">
-            <h2 className="resume-section-header break-after-avoid text-[11px] font-bold tracking-wider uppercase text-[#101010] pb-1 border-b border-[#E5E0D8] mb-2">
+            <h2 className="resume-section-header break-after-avoid text-[15px] font-bold tracking-wider uppercase text-[#101010] pb-1 border-b border-[#E5E0D8] mb-2">
               Skills
             </h2>
             <div className="space-y-1.5">
@@ -2620,7 +2698,7 @@ export function ResumeLivePreview({
         {/* Projects */}
         {projects && projects.length > 0 && (
           <div className="resume-section">
-            <h2 className="resume-section-header break-after-avoid text-[11px] font-bold tracking-wider uppercase text-[#101010] pb-1 border-b border-[#E5E0D8] mb-2">
+            <h2 className="resume-section-header break-after-avoid text-[15px] font-bold tracking-wider uppercase text-[#101010] pb-1 border-b border-[#E5E0D8] mb-2">
               Projects
             </h2>
             <div className="space-y-3">
@@ -2645,12 +2723,12 @@ export function ResumeLivePreview({
                       )}
                     </div>
                     {hasDesc && (
-                      <div className="text-xs text-[#333333] mt-1 whitespace-pre-line leading-relaxed break-words">
+                      <div className="text-[14px] text-[#333333] mt-1 whitespace-pre-line leading-relaxed break-words">
                         {proj.description}
                       </div>
                     )}
                     {projBullets.length > 0 && (
-                      <ul className="list-disc list-outside ml-4 mt-1 space-y-0.5 text-xs text-[#333333]">
+                      <ul className="list-disc list-outside ml-4 mt-1 space-y-0.5 text-[14px] text-[#333333]">
                         {projBullets.map((bullet, idx) => (
                           <li key={idx} className="break-words pl-0.5 leading-relaxed">
                             {bullet}
@@ -2659,7 +2737,7 @@ export function ResumeLivePreview({
                       </ul>
                     )}
                     {proj.techStack && proj.techStack.length > 0 && (
-                      <div className="text-[11px] text-[#777777] italic mt-1 break-words">
+                      <div className="text-[12.5px] text-[#777777] italic mt-1 break-words">
                         Technologies: {proj.techStack.join(', ')}
                       </div>
                     )}
@@ -2682,7 +2760,7 @@ export function ResumeLivePreview({
         {/* Experience */}
         {experience && experience.length > 0 && (
           <div className="resume-section">
-            <h2 className="resume-section-header break-after-avoid text-[11px] font-bold tracking-wider uppercase text-[#101010] pb-1 border-b border-[#E5E0D8] mb-2">
+            <h2 className="resume-section-header break-after-avoid text-[15px] font-bold tracking-wider uppercase text-[#101010] pb-1 border-b border-[#E5E0D8] mb-2">
               Experience &amp; Internships
             </h2>
             <div className="space-y-3">
@@ -2706,12 +2784,12 @@ export function ResumeLivePreview({
                       <div className="text-[11px] text-[#777777]">{exp.location}</div>
                     )}
                     {hasExpDesc && (
-                      <div className="text-xs text-[#333333] mt-1 whitespace-pre-line leading-relaxed break-words">
+                      <div className="text-[14px] text-[#333333] mt-1 whitespace-pre-line leading-relaxed break-words">
                         {exp.description}
                       </div>
                     )}
                     {expBullets.length > 0 && (
-                      <ul className="list-disc list-outside ml-4 mt-1 space-y-0.5 text-xs text-[#333333]">
+                      <ul className="list-disc list-outside ml-4 mt-1 space-y-0.5 text-[14px] text-[#333333]">
                         {expBullets.map((bullet, idx) => (
                           <li key={idx} className="break-words pl-0.5 leading-relaxed">
                             {bullet}
@@ -2729,7 +2807,7 @@ export function ResumeLivePreview({
         {/* Certifications */}
         {certifications && certifications.length > 0 && (
           <div className="resume-section break-inside-avoid">
-            <h2 className="resume-section-header break-after-avoid text-[11px] font-bold tracking-wider uppercase text-[#101010] pb-1 border-b border-[#E5E0D8] mb-2">
+            <h2 className="resume-section-header break-after-avoid text-[15px] font-bold tracking-wider uppercase text-[#101010] pb-1 border-b border-[#E5E0D8] mb-2">
               Certifications &amp; Courses
             </h2>
             <div className="space-y-1.5">

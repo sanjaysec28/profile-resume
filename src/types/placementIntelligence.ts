@@ -58,9 +58,25 @@ export interface EligibilityAssessment {
   assessedAt: string;
 }
 
+export interface MatchCategoryScore {
+  category: 'role' | 'skills' | 'qualifications' | 'experience' | 'graduation';
+  title: string;
+  score: number;
+  maxScore: number;
+  percentage: number;
+  details: string;
+}
+
 export interface JobResumeMatchAnalysis {
   jobId: string;
   matchScore: number; // 0 - 100 deterministic calculation
+  categoryBreakdown: {
+    roleAlignment: MatchCategoryScore;
+    skillAlignment: MatchCategoryScore;
+    qualificationAlignment: MatchCategoryScore;
+    projectExperienceRelevance: MatchCategoryScore;
+    graduationCompatibility: MatchCategoryScore;
+  };
   matchedRequiredSkills: string[];
   missingRequiredSkills: string[];
   matchedPreferredSkills: string[];
@@ -73,6 +89,7 @@ export interface JobResumeMatchAnalysis {
     snippet: string;
   }[];
   recommendedActions: string[];
+  disclaimer: string;
   calculatedAt: string;
 }
 
@@ -185,4 +202,7 @@ export interface PlacementStudentContext {
   experienceCount: number;
   certifications?: string[];
   coursework?: string[];
+  preferredLocations?: string[];
+  preferredWorkEnvironment?: WorkEnvironment;
+  approvedAtsKeywords?: string[];
 }

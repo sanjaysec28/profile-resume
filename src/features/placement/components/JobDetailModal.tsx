@@ -121,106 +121,152 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
         {/* Scrollable Content Body */}
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 text-xs sm:text-sm">
           {/* Section 1: Deterministic Eligibility & Match Overview */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Eligibility Card */}
             {eligibility && (
-              <div className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#101010] flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Eligibility Assessment</span>
-                  </span>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                      eligibility.overallStatus === 'appears-eligible'
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                        : eligibility.overallStatus === 'potentially-eligible'
-                        ? 'bg-amber-50 text-amber-800 border-amber-200'
-                        : 'bg-rose-50 text-rose-800 border-rose-200'
-                    }`}
-                  >
-                    {eligibility.overallStatus.replace('-', ' ')}
-                  </span>
+              <div className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl space-y-3 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#101010] flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#101010]" />
+                      <span>Eligibility Assessment</span>
+                    </span>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                        eligibility.overallStatus === 'appears-eligible'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : eligibility.overallStatus === 'potentially-eligible'
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : eligibility.overallStatus === 'likely-not-eligible'
+                          ? 'bg-rose-50 text-rose-800 border-rose-200'
+                          : 'bg-stone-100 text-stone-700 border-stone-300'
+                      }`}
+                    >
+                      {eligibility.overallStatus.replace('-', ' ')}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#555555] leading-relaxed">
+                    {eligibility.summary}
+                  </p>
                 </div>
-                <p className="text-xs text-[#555555] leading-relaxed">
-                  {eligibility.summary}
-                </p>
 
                 {/* Criteria breakdown */}
                 <div className="space-y-2 pt-2 border-t border-[#E8E2D7]">
                   {eligibility.criteria.map((c, idx) => (
-                    <div key={idx} className="text-[11px] leading-snug">
+                    <div key={idx} className="text-[11px] leading-snug bg-white/70 p-2 rounded-lg border border-[#EFECE6]">
                       <div className="flex items-center justify-between font-semibold">
                         <span className="text-[#101010]">{c.field}</span>
                         <span
-                          className={
+                          className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider ${
                             c.status === 'met'
-                              ? 'text-emerald-700'
+                              ? 'bg-emerald-100 text-emerald-800'
                               : c.status === 'unmet'
-                              ? 'text-rose-700'
-                              : 'text-amber-700'
-                          }
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
                         >
                           {c.status.toUpperCase()}
                         </span>
                       </div>
-                      <div className="text-[#777777] mt-0.5">{c.notes}</div>
+                      <div className="text-[#666666] text-[10px] mt-0.5">
+                        <span className="font-medium text-[#444444]">Student Profile: </span>
+                        {c.studentValue}
+                      </div>
+                      {c.notes && (
+                        <div className="text-[#888888] text-[10px] mt-0.5 italic">
+                          {c.notes}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Resume Match Card */}
+            {/* Resume Match Card with 5-Category Breakdown */}
             {match && (
-              <div className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#101010] flex items-center gap-1.5">
-                    <Award className="w-3.5 h-3.5" />
-                    <span>Resume Skill Match</span>
-                  </span>
-                  <span className="px-2.5 py-0.5 bg-white border border-[#E8E2D7] rounded-full text-xs font-extrabold text-[#101010]">
-                    {match.matchScore}% Match
-                  </span>
-                </div>
-
-                <div className="space-y-2 text-xs">
-                  <div>
-                    <span className="font-bold text-emerald-800">
-                      Matched Skills ({match.matchedRequiredSkills.length}):
+              <div className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl space-y-3 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#101010] flex items-center gap-1.5">
+                      <Award className="w-3.5 h-3.5 text-[#101010]" />
+                      <span>Deterministic Match Score</span>
                     </span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {match.matchedRequiredSkills.map((s) => (
-                        <span key={s} className="px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded text-[11px] font-medium border border-emerald-200">
-                          {s} ✓
-                        </span>
-                      ))}
-                    </div>
+                    <span className="px-3 py-1 bg-[#101010] text-[#F8F5EE] rounded-full text-xs font-extrabold tracking-wide">
+                      {match.matchScore}% Match
+                    </span>
                   </div>
 
+                  {/* 5-Category Breakdown Meters */}
+                  {match.categoryBreakdown && (
+                    <div className="space-y-2 pt-1 border-t border-[#E8E2D7]">
+                      <div className="text-[10px] uppercase font-bold text-[#888888] tracking-wider">
+                        5-Category Score Breakdown
+                      </div>
+                      {Object.values(match.categoryBreakdown).map((cat) => (
+                        <div key={cat.category} className="space-y-0.5">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-medium text-[#222222]">{cat.title}</span>
+                            <span className="font-bold text-[#101010]">
+                              {cat.score} / {cat.maxScore} pts
+                            </span>
+                          </div>
+                          {/* Progress bar meter */}
+                          <div className="h-1.5 w-full bg-[#E8E2D7] rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-[#101010] rounded-full transition-all duration-300"
+                              style={{ width: `${Math.min(cat.percentage, 100)}%` }}
+                            />
+                          </div>
+                          <div className="text-[10px] text-[#777777] truncate">
+                            {cat.details}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Missing Skills Indicators */}
                   {match.missingRequiredSkills.length > 0 && (
-                    <div className="pt-1">
-                      <span className="font-bold text-amber-800">
-                        Missing Requirements ({match.missingRequiredSkills.length}):
+                    <div className="pt-2 border-t border-[#E8E2D7]">
+                      <span className="text-[11px] font-bold text-amber-900 block mb-1">
+                        Missing Required Skills ({match.missingRequiredSkills.length}):
                       </span>
-                      <div className="flex flex-wrap gap-1 mt-1">
+                      <div className="flex flex-wrap gap-1">
                         {match.missingRequiredSkills.map((s) => (
-                          <span key={s} className="px-2 py-0.5 bg-amber-50 text-amber-800 rounded text-[11px] font-medium border border-amber-200">
-                            {s}
+                          <span
+                            key={s}
+                            className="px-2 py-0.5 bg-amber-50 text-amber-900 rounded text-[11px] font-medium border border-amber-200"
+                          >
+                            + {s}
                           </span>
                         ))}
                       </div>
                     </div>
                   )}
+
+                  {/* Matched Required Skills */}
+                  <div>
+                    <span className="text-[11px] font-bold text-emerald-900 block mb-1">
+                      Matched Skills ({match.matchedRequiredSkills.length}):
+                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {match.matchedRequiredSkills.map((s) => (
+                        <span
+                          key={s}
+                          className="px-2 py-0.5 bg-emerald-50 text-emerald-900 rounded text-[11px] font-medium border border-emerald-200"
+                        >
+                          {s} ✓
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
-                {/* Relevant Evidence Quote */}
-                {match.relevantResumeEvidence.length > 0 && (
-                  <div className="pt-2 border-t border-[#E8E2D7] text-[11px] text-[#555555]">
-                    <strong>Resume Evidence: </strong>
-                    {match.relevantResumeEvidence[0].snippet}
-                  </div>
-                )}
+                {/* Advisory Disclaimer */}
+                <div className="pt-3 border-t border-[#E8E2D7] text-[10px] text-[#888888] leading-tight italic">
+                  {match.disclaimer}
+                </div>
               </div>
             )}
           </div>
@@ -271,11 +317,26 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
 
           {/* Section 5: Source & Verification Timestamp */}
           <div className="p-3 bg-[#FAF9F5] border border-[#E8E2D7] rounded-xl text-xs text-[#666666] flex flex-wrap items-center justify-between gap-2">
-            <span>
-              <strong>Verified Source:</strong> {job.sourceName}
-            </span>
+            <div className="flex items-center gap-2">
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                  job.sourceType === 'official-career-page'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : job.sourceType === 'trusted-job-feed'
+                    ? 'bg-blue-100 text-blue-800'
+                    : job.sourceType === 'student-added'
+                    ? 'bg-stone-200 text-stone-800'
+                    : 'bg-purple-100 text-purple-800'
+                }`}
+              >
+                {job.sourceType.replace(/-/g, ' ')}
+              </span>
+              <span>
+                <strong>Source:</strong> {job.sourceName}
+              </span>
+            </div>
             <span className="text-[#888888]">
-              Last verified: {new Date(job.verifiedAt).toLocaleDateString()}
+              Verified: {new Date(job.verifiedAt).toLocaleDateString()}
             </span>
           </div>
         </div>

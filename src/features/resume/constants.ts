@@ -79,7 +79,81 @@ export const ACTIVE_RESUME_TEMPLATES: TemplateDefinition[] = [
     category: 'ats-first',
     status: 'active',
   },
+  {
+    id: 'sidebar-pro',
+    name: 'Sidebar Pro',
+    tagline: '2-Column Accent Sidebar',
+    description: 'Distinctive colored sidebar with profile photo, identity, and skills paired with a clean white content canvas.',
+    badge: 'Executive',
+    recommendedFor: 'Full-Stack Engineers, Product Designers & Leadership',
+    atsScore: '93%',
+    category: 'visual-first',
+    status: 'active',
+  },
+  {
+    id: 'creative-cards',
+    name: 'Creative Cards',
+    tagline: 'Warm Canvas & Section Cards',
+    description: 'Warm cream page background with crisp white rounded cards, colored icons, and structured visual hierarchy.',
+    badge: 'Modern UI',
+    recommendedFor: 'Designers, Frontend Devs & Creative Technologists',
+    atsScore: '92%',
+    category: 'visual-first',
+    status: 'active',
+  },
+  {
+    id: 'accent-minimal',
+    name: 'Accent Minimal',
+    tagline: 'Single-Column Accent Line',
+    description: 'Clean single-column layout with bold identity header, colored divider bar, uppercase headings, and compact tags.',
+    badge: 'Recruiter Pick',
+    recommendedFor: 'Internships, New Grads & Campus Placements',
+    atsScore: '98%',
+    category: 'ats-first',
+    status: 'active',
+  },
 ];
+
+/**
+ * Color Theme Presets for templates with customizable color schemes.
+ * Controls headings, icons, dividers, skill tags, borders, and decorative accents.
+ */
+export interface ThemeColorPreset {
+  id: string;
+  name: string;
+  hex: string;
+  sidebarBg: string;
+  badgeBg: string;
+}
+
+export const THEME_COLOR_PRESETS: ThemeColorPreset[] = [
+  { id: 'yellow', name: 'Yellow', hex: '#D99A00', sidebarBg: '#785400', badgeBg: '#FEFCE8' },
+  { id: 'blue', name: 'Blue', hex: '#2563EB', sidebarBg: '#1E3A8A', badgeBg: '#EFF6FF' },
+  { id: 'green', name: 'Green', hex: '#047857', sidebarBg: '#064E3B', badgeBg: '#ECFDF5' },
+  { id: 'black', name: 'Black', hex: '#222222', sidebarBg: '#121212', badgeBg: '#F5F5F5' },
+  { id: 'plum', name: 'Plum', hex: '#7C3AED', sidebarBg: '#2E1065', badgeBg: '#F5F3FF' },
+  { id: 'crimson', name: 'Crimson', hex: '#BE123C', sidebarBg: '#881337', badgeBg: '#FFF1F2' },
+];
+
+export const DEFAULT_ACCENT_COLOR = '#2563EB';
+
+export function getSidebarBackgroundColor(colorHex?: string): string {
+  if (!colorHex) return '#1E3A8A';
+  const found = THEME_COLOR_PRESETS.find((p) => p.hex.toLowerCase() === colorHex.toLowerCase());
+  if (found) return found.sidebarBg;
+  
+  // Custom hex color calculation: deeply darken hex for sidebar background with strong text contrast (>10:1)
+  try {
+    const cleanHex = colorHex.replace('#', '');
+    if (cleanHex.length === 6) {
+      const r = Math.max(0, Math.round(parseInt(cleanHex.slice(0, 2), 16) * 0.32));
+      const g = Math.max(0, Math.round(parseInt(cleanHex.slice(2, 4), 16) * 0.32));
+      const b = Math.max(0, Math.round(parseInt(cleanHex.slice(4, 6), 16) * 0.32));
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+  } catch {}
+  return colorHex;
+}
 
 /**
  * Legacy templates retained strictly for backwards compatibility with existing saved resumes.
@@ -144,7 +218,7 @@ export const LEGACY_RESUME_TEMPLATES: TemplateDefinition[] = [
 ];
 
 /**
- * Complete catalog of all templates (5 active + 5 legacy), ensuring existing saved drafts resolve metadata correctly.
+ * Complete catalog of all templates (8 active + 5 legacy), ensuring existing saved drafts resolve metadata correctly.
  */
 export const RESUME_TEMPLATES_CATALOG: TemplateDefinition[] = [
   ...ACTIVE_RESUME_TEMPLATES,
@@ -156,6 +230,7 @@ export const INITIAL_RESUME_DATA: ResumeData = {
   title: 'My Resume',
   updatedAt: new Date().toISOString(),
   templateId: 'modern',
+  accentColor: '#2563EB',
   personalInfo: {
     fullName: '',
     professionalTitle: '',

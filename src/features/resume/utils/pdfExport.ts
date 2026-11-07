@@ -130,7 +130,7 @@ function paginateColumn(
   // Collect candidate break elements in strict DOM reading order
   const rawBreakItems = Array.from(
     columnEl.querySelectorAll<HTMLElement>(
-      '.resume-entry, .resume-section-header, .resume-section.break-inside-avoid'
+      '.resume-card.break-inside-avoid, .resume-entry, .resume-section-header, .resume-section.break-inside-avoid'
     )
   );
 
@@ -323,7 +323,12 @@ export async function exportResumeToPdf({
     clone.style.top = '0';
     clone.style.left = '-10000px'; // Off-screen to avoid visual disturbance
     clone.style.zIndex = '-9999';
-    clone.style.backgroundColor = '#FFFFFF';
+
+    // Preserve target background color (e.g. #FAF8F5 for Creative Cards)
+    const targetCompStyle = target.ownerDocument?.defaultView?.getComputedStyle(target) || window.getComputedStyle(target);
+    const rawTargetBg = target.style.backgroundColor || targetCompStyle.backgroundColor;
+    const effectiveBg = (rawTargetBg && rawTargetBg !== 'transparent' && rawTargetBg !== 'rgba(0, 0, 0, 0)') ? rawTargetBg : '#FFFFFF';
+    clone.style.backgroundColor = effectiveBg;
     clone.style.color = '#101010';
     clone.style.display = 'block';
     clone.style.boxSizing = 'border-box';
@@ -381,7 +386,7 @@ export async function exportResumeToPdf({
     const initialCloneRect = clone.getBoundingClientRect();
     const naturalContentBottom = getActualContentBottom(clone, initialCloneRect.top);
 
-    if (naturalContentBottom > A4_PAGE_HEIGHT_PX - 12) {
+    if (naturalContentBottom > A4_PAGE_HEIGHT_PX) {
       // Multi-page document: apply deterministic forward-pass pagination
       applyDeterministicPagination(clone, metrics);
       await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 40)));
@@ -435,7 +440,7 @@ export async function exportResumeToPdf({
       useCORS: true,
       allowTaint: true,
       logging: false,
-      backgroundColor: '#FFFFFF',
+      backgroundColor: effectiveBg,
       windowWidth: A4_WIDTH_PX,
       width: A4_WIDTH_PX,
       scrollX: 0,

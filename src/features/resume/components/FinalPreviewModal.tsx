@@ -6,7 +6,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ResumeData, ResumeTemplateId } from '../../../types/resume.ts';
-import { ACTIVE_RESUME_TEMPLATES, RESUME_TEMPLATES_CATALOG } from '../constants.ts';
+import {
+  ACTIVE_RESUME_TEMPLATES,
+  RESUME_TEMPLATES_CATALOG,
+  THEME_COLOR_PRESETS,
+  DEFAULT_ACCENT_COLOR,
+} from '../constants.ts';
 import { ResumeLivePreview } from './ResumeLivePreview.tsx';
 import { exportResumeToPdf } from '../utils/pdfExport.ts';
 import { lockBodyScroll, unlockBodyScroll } from '../../../lib/scrollLock.ts';
@@ -23,6 +28,7 @@ import {
   Loader2,
   Printer,
   AlertCircle,
+  Palette,
 } from 'lucide-react';
 
 import { computePreExportChecklist } from '../../../lib/resumeReviewScorer.ts';
@@ -35,6 +41,7 @@ interface FinalPreviewModalProps {
   onEditSection: (stepId: number) => void;
   onDownloadPdf?: () => void;
   onSelectTemplate?: (id: ResumeTemplateId) => void;
+  onSelectColor?: (color: string) => void;
   onOpenReview?: () => void;
 }
 
@@ -44,6 +51,7 @@ export function FinalPreviewModal({
   onClose,
   onEditSection,
   onSelectTemplate,
+  onSelectColor,
   onOpenReview,
 }: FinalPreviewModalProps) {
   const [zoomLevel, setZoomLevel] = useState(() => {
@@ -195,6 +203,42 @@ export function FinalPreviewModal({
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {/* Quick Colour Switcher */}
+            {onSelectColor && (
+              <div className="inline-flex items-center gap-1.5 bg-white border border-[#E5E0D8] rounded-xl px-2.5 py-1.5 shadow-2xs">
+                <Palette className="w-3.5 h-3.5 text-[#777777]" />
+                <span className="text-[11px] font-semibold text-[#666666] hidden md:inline">Theme:</span>
+                <div className="flex items-center gap-1">
+                  {THEME_COLOR_PRESETS.map((p) => {
+                    const isSelected = (data.accentColor || DEFAULT_ACCENT_COLOR).toLowerCase() === p.hex.toLowerCase();
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => onSelectColor(p.hex)}
+                        title={p.name}
+                        className={`w-3.5 h-3.5 rounded-full transition-transform cursor-pointer border border-black/10 ${
+                          isSelected ? 'scale-125 ring-2 ring-[#101010]' : 'hover:scale-110'
+                        }`}
+                        style={{ backgroundColor: p.hex }}
+                      />
+                    );
+                  })}
+                  <label
+                    title="Custom Color"
+                    className="cursor-pointer ml-0.5 relative inline-flex items-center"
+                  >
+                    <input
+                      type="color"
+                      value={data.accentColor || DEFAULT_ACCENT_COLOR}
+                      onChange={(e) => onSelectColor(e.target.value)}
+                      className="w-3.5 h-3.5 rounded-full cursor-pointer border-0 p-0 overflow-hidden"
+                    />
+                  </label>
+                </div>
               </div>
             )}
 
