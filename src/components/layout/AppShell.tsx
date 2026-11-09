@@ -15,6 +15,8 @@ export interface AppShellProps {
   children: React.ReactNode;
   userAvatar?: AvatarType;
   userName?: string;
+  userPhotoUrl?: string | null;
+  user?: any;
   showNavbar?: boolean;
   onSignOut?: () => void;
 }
@@ -25,6 +27,8 @@ export function AppShell({
   children,
   userAvatar = 'boy',
   userName = '',
+  userPhotoUrl,
+  user,
   showNavbar = true,
   onSignOut,
 }: AppShellProps) {
@@ -36,6 +40,8 @@ export function AppShell({
           onNavigate={onNavigate}
           userAvatar={userAvatar}
           userName={userName}
+          userPhotoUrl={userPhotoUrl}
+          user={user}
           showAllNav={currentView !== 'welcome'}
           onSignOut={onSignOut}
         />

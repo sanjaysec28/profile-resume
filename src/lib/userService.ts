@@ -40,6 +40,7 @@ export interface UserProfileDocument {
   bio?: string;
   phone?: string;
   location?: string;
+  onboardingCompleted?: boolean;
   socialLinks?: {
     linkedin?: string;
     github?: string;
@@ -102,6 +103,7 @@ export async function syncUserProfileOnLogin(
       bio: '',
       phone: '',
       location: '',
+      onboardingCompleted: false,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };

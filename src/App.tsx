@@ -34,6 +34,7 @@ import {
 
 import { WelcomePage } from './components/welcome/WelcomePage.tsx';
 import { SignInPage } from './components/auth/SignInPage.tsx';
+import { StudentQuickSetupPage } from './components/auth/StudentQuickSetupPage.tsx';
 import { ResumeBuilder, ResumeSetupWizard, RecommendationsDashboard } from './features/resume/index.ts';
 import { ResumeSetupData } from './types/resumeSetup.ts';
 import { getActiveResumeSetup, createInitialResumeSetup } from './lib/resumeSetupService.ts';
@@ -215,12 +216,20 @@ function AppContent() {
     return () => window.removeEventListener('online', handleOnline);
   }, [user?.uid, resumeData]);
 
-  // If user is authenticated and is on signin or welcome, take them directly to dashboard
+  // If user is authenticated, check whether student onboarding is complete
   useEffect(() => {
-    if (user && (currentView === 'signin' || currentView === 'welcome')) {
-      setCurrentView('dashboard');
+    if (user) {
+      if (userProfile) {
+        if (!userProfile.onboardingCompleted || !userProfile.collegeOrUniversity || !userProfile.major) {
+          if (currentView === 'signin' || currentView === 'welcome' || currentView === 'dashboard') {
+            setCurrentView('onboarding');
+          }
+        } else if (currentView === 'signin' || currentView === 'welcome' || currentView === 'onboarding') {
+          setCurrentView('dashboard');
+        }
+      }
     }
-  }, [user]);
+  }, [user, userProfile]);
 
   // Active AI Resume Setup state
   const [activeResumeSetup, setActiveResumeSetup] = useState<ResumeSetupData | null>(() => {
@@ -629,7 +638,45 @@ function AppContent() {
         <LoadingScreen isLoading={isInitializing || isAuthLoading} />
         <SignInPage
           onBackToWelcome={() => setCurrentView('welcome')}
-          onContinueToDashboard={() => setCurrentView('dashboard')}
+          onContinueToDashboard={() => {
+            if (userProfile && (!userProfile.onboardingCompleted || !userProfile.collegeOrUniversity || !userProfile.major)) {
+              setCurrentView('onboarding');
+            } else {
+              setCurrentView('dashboard');
+            }
+          }}
+        />
+      </>
+    );
+  }
+
+  // Student Quick Setup Onboarding Screen
+  if (currentView === 'onboarding') {
+    return (
+      <>
+        <LoadingScreen isLoading={isInitializing || isAuthLoading} />
+        <StudentQuickSetupPage
+          user={user}
+          userProfile={userProfile}
+          profile={profile}
+          onComplete={async (updated) => {
+            await handleUpdateProfile({
+              ...updated,
+            });
+            if (user) {
+              await updateProfile({
+                collegeOrUniversity: updated.collegeOrUniversity,
+                major: updated.major,
+                graduationYear: updated.graduationYear,
+                targetRole: updated.targetRole,
+                avatar: updated.avatar,
+                displayName: updated.fullName,
+                onboardingCompleted: true,
+              } as any);
+            }
+            setCurrentView('dashboard');
+          }}
+          onSignOut={user ? handleSignOut : undefined}
         />
       </>
     );
@@ -689,6 +736,8 @@ function AppContent() {
           userAvatar={profile.avatar}
           userName={profile.fullName}
           userId={user?.uid}
+          userPhotoUrl={user?.photoURL}
+          user={user}
           onSignOut={user ? handleSignOut : undefined}
           studentName={profile.fullName.split(' ')[0]}
           initialData={resumeData}
@@ -719,6 +768,8 @@ function AppContent() {
           onNavigate={handleNavigate}
           userAvatar={profile.avatar}
           userName={profile.fullName}
+          userPhotoUrl={user?.photoURL}
+          user={user}
           onSignOut={user ? handleSignOut : undefined}
         >
           <CareerIntelligenceWorkspace
@@ -748,6 +799,8 @@ function AppContent() {
           onNavigate={handleNavigate}
           userAvatar={profile.avatar}
           userName={profile.fullName}
+          userPhotoUrl={user?.photoURL}
+          user={user}
           onSignOut={user ? handleSignOut : undefined}
         >
           <InterviewIntelligenceWorkspace
@@ -780,6 +833,8 @@ function AppContent() {
           onNavigate={handleNavigate}
           userAvatar={profile.avatar}
           userName={profile.fullName}
+          userPhotoUrl={user?.photoURL}
+          user={user}
           onSignOut={user ? handleSignOut : undefined}
         >
           <PlacementIntelligenceWorkspace
@@ -807,6 +862,8 @@ function AppContent() {
         onNavigate={handleNavigate}
         userAvatar={profile.avatar}
         userName={profile.fullName}
+        userPhotoUrl={user?.photoURL}
+        user={user}
         onSignOut={user ? handleSignOut : undefined}
       >
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
@@ -814,37 +871,60 @@ function AppContent() {
             {/* VIEW 1: STUDENT DASHBOARD */}
             {currentView === 'dashboard' && (
               <div>
-                {/* Header Banner Card with headercard.png */}
-                <div className="relative w-full rounded-[24px] sm:rounded-[28px] overflow-hidden border border-[#E5E0D8] bg-[#F7F4ED] shadow-sm mb-8 sm:mb-10 min-h-[140px]">
-                  <FadeImage
-                    src="/image/headercard.png"
-                    fallbackSrc="/images/headercard.png"
-                    alt="Welcome to ProFile"
-                    wrapperClassName="w-full h-auto"
-                    className="w-full h-auto object-cover"
-                    loading="eager"
-                  />
-                  {/* Subtle warm ivory/cream text backdrop gradient on the left side to ensure excellent contrast */}
-                  <div
-                    className="absolute inset-y-0 left-0 w-full sm:w-[75%] lg:w-[62%] bg-gradient-to-r from-[#FAF7F2]/95 via-[#FAF7F2]/80 to-transparent pointer-events-none"
-                    aria-hidden="true"
-                  />
-                  <div className="absolute inset-0 flex flex-col justify-center px-5 sm:px-10 lg:px-14 max-w-[85%] sm:max-w-[70%] lg:max-w-[58%] z-10">
-                    <div className="space-y-1 sm:space-y-2">
-                      <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#625D56] block">
-                        YOUR CAREER JOURNEY STARTS HERE
-                      </span>
-                      <h1 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-[#171513] leading-tight">
-                        {(() => {
-                          const rawName = user?.displayName || (profile.fullName && profile.fullName !== 'Student' ? profile.fullName : '');
-                          const firstName = rawName.trim().split(/\s+/)[0];
-                          return firstName ? `Welcome back, ${firstName}!` : 'Welcome back!';
-                        })()}
-                      </h1>
-                      <p className="text-[11px] sm:text-sm lg:text-base text-[#625D56] leading-snug sm:leading-relaxed max-w-xl">
-                        Build a professional resume, check your ATS compatibility, and get ready for your next opportunity.
-                      </p>
+                {/* Header Banner Card with personalized greeting, student metadata and mascot */}
+                <div className="relative w-full rounded-[24px] sm:rounded-[28px] overflow-hidden border border-[#E5E0D8] bg-[#F7F4ED] shadow-sm mb-8 sm:mb-10 p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
+                  <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-40">
+                    <FadeImage
+                      src="/images/headercard.webp"
+                      fallbackSrc="/images/headercard.webp"
+                      alt="Banner"
+                      wrapperClassName="w-full h-full"
+                      className="w-full h-full object-cover"
+                      loading="eager"
+                    />
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#FAF7F2] via-[#FAF7F2]/90 to-transparent pointer-events-none" />
+
+                  <div className="relative z-10 space-y-2 max-w-xl">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {profile.collegeOrUniversity && (
+                        <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#625D56] bg-white/90 border border-[#E5E0D8] px-2.5 py-1 rounded-lg shadow-2xs">
+                          {profile.collegeOrUniversity}
+                        </span>
+                      )}
+                      {profile.graduationYear && (
+                        <span className="text-[10px] sm:text-xs font-bold text-[#8C6D1F] bg-[#FAF5EC] border border-[#E8DEC8] px-2.5 py-1 rounded-lg">
+                          {profile.graduationYear}
+                        </span>
+                      )}
+                      {profile.major && (
+                        <span className="text-[10px] sm:text-xs font-medium text-[#555555] bg-white/80 border border-[#E5E0D8] px-2.5 py-1 rounded-lg">
+                          {profile.major}
+                        </span>
+                      )}
                     </div>
+                    <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-[#171513] leading-tight">
+                      {(() => {
+                        const rawName = user?.displayName || (profile.fullName && profile.fullName !== 'Student' ? profile.fullName : '');
+                        const firstName = rawName.trim().split(/\s+/)[0];
+                        return firstName ? `Hi, ${firstName}!` : 'Hi there!';
+                      })()}
+                    </h1>
+                    <p className="text-xs sm:text-sm text-[#625D56] leading-relaxed">
+                      Build a professional resume, check your ATS compatibility, and get ready for your next career opportunity.
+                    </p>
+                  </div>
+
+                  {/* Mascot Image */}
+                  <div className="relative z-10 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-white border border-[#E5E0D8] shadow-md shrink-0 flex items-center justify-center p-2">
+                    <FadeImage
+                      src={profile.avatar === 'girl' ? '/images/girl-card.webp' : '/images/boy-card.webp'}
+                      fallbackSrc="/images/boy-card.webp"
+                      alt="Student Mascot"
+                      wrapperClassName="w-full h-full"
+                      className="w-full h-full object-cover rounded-xl"
+                      loading="eager"
+                    />
                   </div>
                 </div>
 
@@ -865,8 +945,8 @@ function AppContent() {
                     aria-label="Build Resume"
                   >
                     <FadeImage
-                      src="/image/build.png"
-                      fallbackSrc="/images/build.png"
+                      src="/images/resume-builder.webp"
+                      fallbackSrc="/images/resume-builder.webp"
                       alt="Build Resume"
                       wrapperClassName="w-full h-full"
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
@@ -889,8 +969,8 @@ function AppContent() {
                     aria-label="ATS Checker"
                   >
                     <FadeImage
-                      src="/image/ats.png"
-                      fallbackSrc="/images/ats.png"
+                      src="/images/ats-checker.webp"
+                      fallbackSrc="/images/ats-checker.webp"
                       alt="ATS Checker"
                       wrapperClassName="w-full h-full"
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
@@ -913,8 +993,8 @@ function AppContent() {
                     aria-label="My Profile"
                   >
                     <FadeImage
-                      src="/image/pro.png"
-                      fallbackSrc="/images/pro.png"
+                      src="/images/career-roadmap.webp"
+                      fallbackSrc="/images/career-roadmap.webp"
                       alt="My Profile"
                       wrapperClassName="w-full h-full"
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
@@ -1025,8 +1105,8 @@ function AppContent() {
                 {/* Dashboard Career Banner Card with downcard.png */}
                 <div className="mt-6 sm:mt-8 relative w-full rounded-[24px] sm:rounded-[28px] overflow-hidden border border-[#E5E0D8] bg-[#F7F4ED] shadow-sm flex items-center justify-center">
                   <FadeImage
-                    src="/image/downcard.png"
-                    fallbackSrc="/images/downcard.png"
+                    src="/images/downcard.webp"
+                    fallbackSrc="/images/downcard.webp"
                     alt="ProFile Career Journey"
                     wrapperClassName="w-full flex items-center justify-center"
                     className="w-full h-auto object-contain block"

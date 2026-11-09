@@ -207,6 +207,8 @@ export function ResumeSetupWizard({
         onNavigate={onNavigate}
         userAvatar={userAvatar}
         userName={userName}
+        userPhotoUrl={user?.photoURL}
+        user={user}
         onSignOut={onSignOut}
       />
 

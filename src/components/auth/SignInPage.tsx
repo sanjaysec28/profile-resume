@@ -236,8 +236,8 @@ export function SignInPage({
 
               {/* Illustration with object-fit: contain and aspect-ratio preservation */}
               <FadeImage
-                src="/image/login.png"
-                fallbackSrc="/images/login.png"
+                src="/images/login.webp"
+                fallbackSrc="/images/login.webp"
                 alt="Sign in to ProFile"
                 wrapperClassName="w-full flex items-center justify-center"
                 className="w-full h-auto max-h-[380px] sm:max-h-[460px] lg:max-h-[520px] object-contain select-none pointer-events-none"

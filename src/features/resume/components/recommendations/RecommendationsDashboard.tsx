@@ -360,6 +360,8 @@ export function RecommendationsDashboard({
         onNavigate={onNavigate}
         userAvatar={userAvatar}
         userName={userName}
+        userPhotoUrl={user?.photoURL}
+        user={user}
         onSignOut={onSignOut}
       />
 

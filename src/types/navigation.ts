@@ -6,6 +6,7 @@
 export type AppView =
   | 'welcome'
   | 'signin'
+  | 'onboarding'
   | 'dashboard'
   | 'resume-setup'
   | 'resume-recommendations'

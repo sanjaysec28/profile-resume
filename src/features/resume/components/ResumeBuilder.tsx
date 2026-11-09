@@ -80,6 +80,8 @@ interface ResumeBuilderProps {
   userAvatar?: AvatarType;
   userName?: string;
   userId?: string;
+  userPhotoUrl?: string | null;
+  user?: any;
   onSignOut?: () => void;
   studentName?: string;
   initialData?: ResumeData;
@@ -99,6 +101,8 @@ export function ResumeBuilder({
   userAvatar = 'boy',
   userName = '',
   userId,
+  userPhotoUrl,
+  user,
   onSignOut,
   studentName = '',
   initialData,
@@ -721,6 +725,8 @@ export function ResumeBuilder({
         })}
         userAvatar={userAvatar}
         userName={userName || studentName}
+        userPhotoUrl={userPhotoUrl}
+        user={user}
         onSignOut={onSignOut}
         showAllNav={true}
       />

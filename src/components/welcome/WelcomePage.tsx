@@ -90,8 +90,8 @@ export function WelcomePage({ onGetStarted }: WelcomePageProps) {
 
           <div className="animate-breath">
             <FadeImage
-              src="/image/intro.png"
-              fallbackSrc="/images/intro.png"
+              src="/images/intro.webp"
+              fallbackSrc="/images/intro.webp"
               alt="ProFile"
               wrapperClassName="flex items-center justify-center"
               className="w-[280px] sm:w-[360px] md:w-[440px] lg:w-[480px] h-auto object-contain select-none pointer-events-none"

@@ -18,7 +18,6 @@ import { cn } from '../../lib/utils.ts';
 import {
   Menu,
   X,
-  LayoutDashboard,
   FileText,
   CheckCircle2,
   User,
@@ -34,6 +33,8 @@ export interface NavbarProps {
   onNavigate: (view: AppView) => void;
   userAvatar?: AvatarType;
   userName?: string;
+  userPhotoUrl?: string | null;
+  user?: any;
   onGetStartedClick?: () => void;
   showAllNav?: boolean;
   onSignOut?: () => void;
@@ -42,8 +43,9 @@ export interface NavbarProps {
 export function Navbar({
   currentView,
   onNavigate,
-  userAvatar = 'boy',
   userName = '',
+  userPhotoUrl,
+  user,
   onGetStartedClick,
   showAllNav = true,
   onSignOut,
@@ -63,15 +65,13 @@ export function Navbar({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Core user-facing navigation items
-  const navLinks: { view: AppView; label: string; icon: typeof LayoutDashboard }[] = [
-    { view: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  // Core user-facing navigation items (Dashboard and My Profile removed)
+  const navLinks: { view: AppView; label: string; icon: typeof FileText }[] = [
     { view: 'resume-builder', label: 'Resume Builder', icon: FileText },
     { view: 'career-intelligence', label: 'Career Roadmap', icon: Compass },
     { view: 'interview-prep', label: 'Interview Prep', icon: Mic },
     { view: 'placement-intelligence', label: 'Jobs & Placements', icon: Briefcase },
     { view: 'ats-upload', label: 'ATS Checker', icon: CheckCircle2 },
-    { view: 'profile', label: 'My Profile', icon: User },
   ];
 
   const handleNavClick = (view: AppView) => {
@@ -80,8 +80,10 @@ export function Navbar({
     setIsAccountMenuOpen(false);
   };
 
-  const displayName = userName ? userName.trim().split(/\s+/)[0] : 'Sanjay';
-  const initial = (displayName.charAt(0) || 'S').toUpperCase();
+  const fullName = userName || user?.displayName || 'Student';
+  const displayName = fullName.trim().split(/\s+/)[0] || 'User';
+  const initial = (displayName.charAt(0) || 'U').toUpperCase();
+  const userPhoto = userPhotoUrl || user?.photoURL;
 
   return (
     <header className="sticky top-2 sm:top-4 z-40 w-full px-3 sm:px-6 pointer-events-none select-none">
@@ -125,11 +127,11 @@ export function Navbar({
             </nav>
           )}
 
-          {/* Zone 3: Right Action — Compact Circular Initial Avatar with Popover */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Zone 3: Right Action — Profile Dropdown Pill */}
+          <div className="flex items-center gap-2.5 shrink-0">
             {currentView === 'welcome' ? (
               <button
-                onClick={onGetStartedClick || (() => handleNavClick('dashboard'))}
+                onClick={onGetStartedClick || (() => handleNavClick('resume-builder'))}
                 className="px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-[#101010] rounded-full hover:bg-[#252525] transition-colors whitespace-nowrap shrink-0 shadow-2xs cursor-pointer"
               >
                 Get Started
@@ -140,24 +142,41 @@ export function Navbar({
                   type="button"
                   onClick={() => setIsAccountMenuOpen((prev) => !prev)}
                   className={cn(
-                    'w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-sm sm:text-base text-white transition-all active:scale-95 cursor-pointer shadow-xs shrink-0 select-none border',
-                    currentView === 'profile'
-                      ? 'bg-[#101010] border-[#101010] ring-2 ring-[#101010] ring-offset-2 ring-offset-[#F8F5EE]'
-                      : 'bg-[#101010] hover:bg-[#252525] border-[#2A2A2A]'
+                    'flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-[#101010] text-white border border-[#2A2A2A] hover:bg-[#252525] transition-all active:scale-95 cursor-pointer shadow-xs shrink-0 select-none',
+                    currentView === 'profile' && 'ring-2 ring-[#101010] ring-offset-2 ring-offset-[#F8F5EE]'
                   )}
-                  aria-label={`User account menu for ${displayName}`}
+                  aria-label={`User account menu for ${fullName}`}
                   aria-expanded={isAccountMenuOpen}
-                  title={`${displayName} — Account & Profile`}
+                  title={`${fullName} — Account & Profile`}
                 >
-                  <span className="leading-none">{initial}</span>
+                  {userPhoto ? (
+                    <img
+                      src={userPhoto}
+                      alt={fullName}
+                      className="w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border border-[#333333]"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#2A2A2A] text-white flex items-center justify-center font-bold text-xs">
+                      {initial}
+                    </div>
+                  )}
+
+                  <span className="text-xs sm:text-sm font-medium tracking-tight max-w-[110px] truncate">
+                    {displayName}
+                  </span>
+
+                  <ChevronDown className={cn("w-3.5 h-3.5 text-[#AAAAAA] transition-transform duration-200", isAccountMenuOpen && "rotate-180")} />
                 </button>
 
                 {/* Compact Popover Account Menu */}
                 {isAccountMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-[#E5E0D8] rounded-2xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-                    <div className="px-3.5 py-1.5 border-b border-[#F0ECE3] mb-1">
+                  <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-[#E5E0D8] rounded-2xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="px-3.5 py-2 border-b border-[#F0ECE3] mb-1">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-[#777777]">Signed In As</p>
-                      <p className="text-xs font-semibold text-[#101010] truncate">{userName || displayName}</p>
+                      <p className="text-xs font-semibold text-[#101010] truncate">{user?.email || userName || fullName}</p>
                     </div>
 
                     <button

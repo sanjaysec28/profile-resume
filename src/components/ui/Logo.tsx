@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * 
  * ProFile Official Brand Logo Component
- * - Displays the official logo.png with natural horizontal aspect ratio (~3.3:1)
+ * - Displays the official logo.webp with natural horizontal aspect ratio (~3.3:1)
  * - object-fit: contain with no artificial background box or border
  * - Graceful fallback to sharp typography if asset is unavailable
  */
@@ -12,7 +12,7 @@ import React, { useState } from 'react';
 
 export interface LogoProps {
   className?: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   alt?: string;
   onClick?: () => void;
 }
@@ -51,18 +51,11 @@ export function Logo({
 
   return (
     <img
-      src="/image/logo.png"
+      src="/images/logo.webp"
       alt={alt}
       className={`w-auto object-contain shrink-0 transition-opacity select-none ${sizeClasses[size]} ${className}`}
       loading="eager"
-      onError={(e) => {
-        const target = e.currentTarget;
-        if (target.src.indexOf('/images/logo.png') === -1) {
-          target.src = '/images/logo.png';
-        } else {
-          setHasError(true);
-        }
-      }}
+      onError={() => setHasError(true)}
       onClick={onClick}
     />
   );
