@@ -79,6 +79,14 @@ ${rubric}
 ### REQUIRED JSON OUTPUT FORMAT:
 {
   "score": 75,
+  "rubric": {
+    "technicalCorrectness": 8,
+    "clarity": 7,
+    "structure": 8,
+    "problemSolvingApproach": 7,
+    "communication": 8,
+    "relevance": 9
+  },
   "whatWasDoneWell": ["Accurately identified the core data structure...", "Good initial intuition..."],
   "whatWasMissing": ["Did not mention the worst-case space complexity...", "Overlooked empty input edge case..."],
   "improvementSuggestions": ["Always state Big-O bounds explicitly...", "Structure behavioral answers with the STAR method..."],
@@ -98,11 +106,24 @@ ${rubric}
 
     const cleaned = text.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
     const parsed = JSON.parse(cleaned);
+    const score = typeof parsed.score === 'number' ? Math.min(Math.max(parsed.score, 0), 100) : 65;
+
+    const baseTen = Math.round(score / 10);
+    const rubric = {
+      technicalCorrectness: typeof parsed.rubric?.technicalCorrectness === 'number' ? Math.min(Math.max(parsed.rubric.technicalCorrectness, 0), 10) : baseTen,
+      clarity: typeof parsed.rubric?.clarity === 'number' ? Math.min(Math.max(parsed.rubric.clarity, 0), 10) : baseTen,
+      structure: typeof parsed.rubric?.structure === 'number' ? Math.min(Math.max(parsed.rubric.structure, 0), 10) : baseTen,
+      problemSolvingApproach: typeof parsed.rubric?.problemSolvingApproach === 'number' ? Math.min(Math.max(parsed.rubric.problemSolvingApproach, 0), 10) : baseTen,
+      communication: typeof parsed.rubric?.communication === 'number' ? Math.min(Math.max(parsed.rubric.communication, 0), 10) : baseTen,
+      relevance: typeof parsed.rubric?.relevance === 'number' ? Math.min(Math.max(parsed.rubric.relevance, 0), 10) : baseTen,
+    };
+
     return {
       questionId: question.id,
       studentAnswer: answer,
       answerMode: input.answerMode,
-      score: typeof parsed.score === 'number' ? Math.min(Math.max(parsed.score, 0), 100) : 65,
+      score,
+      rubric,
       whatWasDoneWell: Array.isArray(parsed.whatWasDoneWell) ? parsed.whatWasDoneWell : ['Demonstrated basic familiarity with the topic.'],
       whatWasMissing: Array.isArray(parsed.whatWasMissing) ? parsed.whatWasMissing : ['Could provide deeper architectural context.'],
       improvementSuggestions: Array.isArray(parsed.improvementSuggestions) ? parsed.improvementSuggestions : ['Practice articulating edge cases clearly.'],
@@ -117,12 +138,21 @@ ${rubric}
   // Grounded heuristic evaluation if remote models have temporary outage
   const words = answer.split(/\s+/).filter(Boolean).length;
   const estimatedScore = Math.min(Math.max(Math.round(words * 1.5 + 40), 30), 85);
+  const baseRubric = Math.min(Math.max(Math.round(estimatedScore / 10), 3), 9);
 
   return {
     questionId: question.id,
     studentAnswer: answer,
     answerMode: input.answerMode,
     score: estimatedScore,
+    rubric: {
+      technicalCorrectness: baseRubric,
+      clarity: Math.min(baseRubric + 1, 10),
+      structure: baseRubric,
+      problemSolvingApproach: Math.max(baseRubric - 1, 3),
+      communication: Math.min(baseRubric + 1, 10),
+      relevance: baseRubric,
+    },
     whatWasDoneWell: [
       `Addressed the question with a ${words}-word response.`,
       `Attempted to communicate concepts related to ${question.topic}.`,

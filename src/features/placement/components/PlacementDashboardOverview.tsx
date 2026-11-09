@@ -43,7 +43,7 @@ interface PlacementDashboardOverviewProps {
     match: JobResumeMatchAnalysis;
     eligibility: EligibilityAssessment;
   }[];
-  onNavigateTab: (tab: 'discovery' | 'tracker' | 'saved') => void;
+  onNavigateTab: (tab: 'discovery' | 'tracker' | 'saved' | 'readiness' | 'interview') => void;
   onSelectJob: (job: VerifiedJobOpportunity) => void;
   onOpenAddApplication: () => void;
   onNavigateToCareer?: () => void;

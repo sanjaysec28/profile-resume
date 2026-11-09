@@ -6,7 +6,7 @@
  * Phase 11: Real Firebase Authentication + Cloud Firestore User Profile + Cloudinary Integration
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { AppShell } from './components/layout/AppShell.tsx';
 import { PageHeader } from './components/layout/PageHeader.tsx';
 import { Button } from './components/ui/Button.tsx';
@@ -45,6 +45,19 @@ import { PlacementIntelligenceWorkspace } from './features/placement/index.ts';
 
 import { forceUnlockAllScroll } from './lib/scrollLock.ts';
 import { PdfQaTestHarness } from './features/resume/test/PdfQaTestHarness.tsx';
+import { UnifiedAssistantProvider, UnifiedAiAssistantDrawer } from './features/assistant/index.ts';
+import { ActiveAppModule, ModuleContextPayload, CrossModuleAction } from './types/unifiedAssistant.ts';
+import { loadCareerRoadmap, saveCareerRoadmap } from './lib/careerReadinessEngine.ts';
+import {
+  StudentCareerGoals,
+  DEFAULT_CAREER_GOALS,
+  StudentIntelligenceProfile,
+} from './types/personalization.ts';
+import {
+  loadStudentCareerGoals,
+  saveStudentCareerGoals,
+  buildUnifiedStudentIntelligence,
+} from './lib/studentPersonalizationService.ts';
 
 function AppContent() {
   const { user, userProfile, isLoading: isAuthLoading, isConfigured, signOut, updateProfile } = useAuth();
@@ -444,6 +457,161 @@ function AppContent() {
     });
   };
 
+  // Map current view to active AI Assistant module
+  const activeModule: ActiveAppModule = (() => {
+    switch (currentView) {
+      case 'dashboard':
+        return 'dashboard';
+      case 'resume-builder':
+      case 'resume-setup':
+      case 'resume-recommendations':
+      case 'resume-templates':
+      case 'resume-editor':
+      case 'resume-preview':
+        return 'resume_builder';
+      case 'ats-upload':
+      case 'ats-results':
+        return 'ats_checker';
+      case 'profile':
+        return 'resume_review';
+      case 'career-intelligence':
+        return 'career_roadmap';
+      case 'placement-intelligence':
+        return 'job_discovery';
+      case 'interview-prep':
+      case 'history':
+        return 'interview_prep';
+      default:
+        return 'dashboard';
+    }
+  })();
+
+  // Persistent Student Career Goals & Personalization (Phase D.7.2)
+  const [studentGoals, setStudentGoals] = useState<StudentCareerGoals>(DEFAULT_CAREER_GOALS);
+
+  useEffect(() => {
+    loadStudentCareerGoals(user?.uid, {
+      targetRole: activeResumeSetup?.targetRole?.title || profile.targetRole,
+      location: profile.location,
+    }).then((loaded) => {
+      setStudentGoals(loaded);
+    });
+  }, [user?.uid, profile.targetRole, profile.location, activeResumeSetup?.targetRole?.title]);
+
+  // Unified Student Intelligence Layer (Aggregates existing data without duplicates)
+  const studentIntelligence = useMemo(() => {
+    return buildUnifiedStudentIntelligence({
+      profile,
+      resumeData,
+      setupData: activeResumeSetup,
+      goals: studentGoals,
+    });
+  }, [profile, resumeData, activeResumeSetup, studentGoals]);
+
+  // Construct minimal, lightweight context snapshot for AI Assistant
+  const assistantContext: Partial<ModuleContextPayload> = {
+    activeModule,
+    targetRole:
+      studentGoals.targetRole ||
+      activeResumeSetup?.targetRole?.title ||
+      profile.targetRole ||
+      resumeData.personalInfo?.professionalTitle ||
+      'Software Engineer',
+    resumeSnapshot: {
+      fullName: resumeData.personalInfo?.fullName || profile.fullName,
+      professionalTitle: resumeData.personalInfo?.professionalTitle || profile.targetRole,
+      sectionsCount: [
+        (resumeData.experience?.length || 0) > 0,
+        (resumeData.education?.length || 0) > 0,
+        (resumeData.projects?.length || 0) > 0,
+        (resumeData.skills?.technical?.length || 0) > 0,
+      ].filter(Boolean).length,
+      topTechnicalSkills: (resumeData.skills?.technical || []).slice(0, 8),
+      topProjectTitles: (resumeData.projects || []).slice(0, 3).map((p) => p.title),
+      summaryPreview: resumeData.personalInfo?.summary?.slice(0, 100),
+    },
+    studentGoalsSnapshot: {
+      primaryCareerGoal: studentGoals.primaryCareerGoal,
+      preferredIndustries: studentGoals.preferredIndustries,
+      preferredLocations: studentGoals.preferredLocations,
+      workPreference: studentGoals.workPreference,
+      targetCompletionDate: studentGoals.targetCompletionDate,
+      shortTermLearningGoals: studentGoals.shortTermLearningGoals,
+      placementPrepGoals: studentGoals.placementPrepGoals,
+    },
+    recentProgressEvents: studentIntelligence.recentEvents.slice(0, 4).map((e: any) => ({
+      id: e.id,
+      title: e.title,
+      type: e.type,
+      timestamp: e.timestamp,
+    })),
+    detectedContradictions: studentIntelligence.contradictionsOrGaps,
+  };
+
+  // Safe Cross-Module Action Executor (Only runs after student explicitly approves)
+  const handleExecuteCrossModuleAction = async (action: CrossModuleAction) => {
+    switch (action.type) {
+      case 'open_resume_builder':
+        if (activeResumeSetup) {
+          setCurrentView('resume-builder');
+        } else {
+          setCurrentView('resume-setup');
+        }
+        break;
+      case 'open_ats_checker':
+        setCurrentView('ats-upload');
+        break;
+      case 'start_mock_interview':
+        if (action.payload?.targetRole || action.payload?.interviewType) {
+          setInterviewNavContext({
+            topic: action.payload.targetRole || profile.targetRole || 'Full Stack Engineer',
+            category: action.payload.interviewType || 'technical',
+          });
+        }
+        setCurrentView('interview-prep');
+        break;
+      case 'prepare_project_defense':
+        setInterviewNavContext({
+          tab: 'defense',
+          topic: action.payload?.projectTitle || 'Flagship Engineering Project',
+        });
+        setCurrentView('interview-prep');
+        break;
+      case 'prepare_application_draft':
+        setCurrentView('placement-intelligence');
+        break;
+      case 'suggest_roadmap_milestone':
+        try {
+          const role =
+            activeResumeSetup?.targetRole?.title || profile.targetRole || 'Full Stack Engineer';
+          const currentRoadmap = await loadCareerRoadmap(user?.uid, role);
+          const newMilestone = {
+            id: `ms_ai_${Date.now()}`,
+            title: action.payload?.title || 'Targeted Technical Milestone',
+            description: action.description || 'Actionable milestone suggested by ProFile AI Assistant',
+            category: (action.payload?.category as any) || 'technical_skills',
+            priority: (action.payload?.priority as any) || 'high',
+            estimatedDuration: action.payload?.estimatedDuration || '1 week',
+            status: 'not_started' as const,
+            completionCriteria: 'Complete implementation and verify test coverage.',
+            orderIndex: currentRoadmap.milestones.length + 1,
+          };
+          const updatedRoadmap = {
+            ...currentRoadmap,
+            milestones: [...currentRoadmap.milestones, newMilestone],
+            updatedAt: new Date().toISOString(),
+          };
+          await saveCareerRoadmap(user?.uid, updatedRoadmap);
+        } catch (err) {
+          console.warn('Failed to auto-save approved milestone to roadmap:', err);
+        }
+        setCurrentView('career-intelligence');
+        break;
+      default:
+        break;
+    }
+  };
+
   // Welcome Screen: Centered hero intro.png on warm cream background with black Get Started button
   if (currentView === 'welcome') {
     return (
@@ -467,9 +635,11 @@ function AppContent() {
     );
   }
 
-  // Dedicated AI Resume Assistant Setup Wizard (Phase 1)
-  if (currentView === 'resume-setup') {
-    return (
+  // Render view wrapped in centralized Unified AI Assistant Provider
+  const renderCurrentView = () => {
+    // Dedicated AI Resume Assistant Setup Wizard (Phase 1)
+    if (currentView === 'resume-setup') {
+      return (
       <>
         <LoadingScreen isLoading={isInitializing} />
         <ResumeSetupWizard
@@ -876,6 +1046,9 @@ function AppContent() {
                 onNavigateToBuilder={() => setCurrentView('resume-builder')}
                 onNavigateToAts={() => setCurrentView('ats-upload')}
                 onSignOut={user ? handleSignOut : undefined}
+                goals={studentGoals}
+                onUpdateGoals={(updated) => setStudentGoals(updated)}
+                intelligence={studentIntelligence}
               />
             )}
 
@@ -897,6 +1070,19 @@ function AppContent() {
         </div>
       </AppShell>
     </>
+  );
+  };
+
+  return (
+    <UnifiedAssistantProvider
+      userId={user?.uid}
+      initialModule={activeModule}
+      activeContext={assistantContext}
+      onExecuteCrossModuleAction={handleExecuteCrossModuleAction}
+    >
+      {renderCurrentView()}
+      <UnifiedAiAssistantDrawer />
+    </UnifiedAssistantProvider>
   );
 }
 

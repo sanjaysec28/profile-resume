@@ -21,6 +21,7 @@ import {
   InterviewCoachMessage,
 } from '../types/interviewIntelligence.ts';
 import { INITIAL_DSA_TOPICS, CORE_HR_QUESTIONS } from './interviewPrepData.ts';
+import { cleanFirestoreData } from './placementIntelligenceService.ts';
 
 const SESSIONS_LOCAL_STORAGE_PREFIX = 'profile_interview_sessions_';
 const DSA_LOCAL_STORAGE_PREFIX = 'profile_dsa_topics_';
@@ -47,8 +48,9 @@ export async function saveInterviewSession(
   if (userId && db) {
     try {
       const sessionRef = doc(db, 'users', userId, 'interviewSessions', session.id);
+      const cleaned = cleanFirestoreData(session);
       await setDoc(sessionRef, {
-        ...session,
+        ...cleaned,
         updatedAt: new Date().toISOString(),
       });
     } catch (err) {

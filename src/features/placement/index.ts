@@ -10,3 +10,5 @@ export { ApplicationTrackerWorkspace } from './components/ApplicationTrackerWork
 export { JobDetailModal } from './components/JobDetailModal.tsx';
 export { AiApplicationAssistantModal } from './components/AiApplicationAssistantModal.tsx';
 export { AddApplicationModal } from './components/AddApplicationModal.tsx';
+export { CareerReadinessWorkspace } from './components/CareerReadinessWorkspace.tsx';
+export { InteractiveInterviewWorkspace } from './components/InteractiveInterviewWorkspace.tsx';

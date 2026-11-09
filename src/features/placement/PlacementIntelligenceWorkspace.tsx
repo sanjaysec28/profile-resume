@@ -16,6 +16,8 @@ import {
   ShieldCheck,
   ChevronRight,
   ArrowLeft,
+  TrendingUp,
+  MessageSquare,
 } from 'lucide-react';
 import {
   VerifiedJobOpportunity,
@@ -28,7 +30,7 @@ import { StudentProfile } from '../../types/profile.ts';
 import { ResumeData } from '../../types/resume.ts';
 import { ResumeSetupData } from '../../types/resumeSetup.ts';
 import { CareerPlan } from '../../types/careerIntelligence.ts';
-import { InterviewDashboardMetrics } from '../../types/interviewIntelligence.ts';
+import { InterviewDashboardMetrics, InterviewSession } from '../../types/interviewIntelligence.ts';
 import { VERIFIED_JOB_OPPORTUNITIES } from '../../lib/verifiedJobCatalog.ts';
 import {
   buildPlacementContext,
@@ -53,11 +55,13 @@ import {
 import { PlacementDashboardOverview } from './components/PlacementDashboardOverview.tsx';
 import { JobDiscoveryWorkspace } from './components/JobDiscoveryWorkspace.tsx';
 import { ApplicationTrackerWorkspace } from './components/ApplicationTrackerWorkspace.tsx';
+import { CareerReadinessWorkspace } from './components/CareerReadinessWorkspace.tsx';
+import { InteractiveInterviewWorkspace } from './components/InteractiveInterviewWorkspace.tsx';
 import { JobDetailModal } from './components/JobDetailModal.tsx';
 import { AiApplicationAssistantModal } from './components/AiApplicationAssistantModal.tsx';
 import { AddApplicationModal } from './components/AddApplicationModal.tsx';
 
-type PlacementTab = 'dashboard' | 'discovery' | 'tracker' | 'saved';
+type PlacementTab = 'dashboard' | 'discovery' | 'tracker' | 'readiness' | 'interview' | 'saved';
 
 interface PlacementIntelligenceWorkspaceProps {
   userId?: string;
@@ -85,16 +89,22 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
   const [activeTab, setActiveTab] = useState<PlacementTab>('dashboard');
   const [savedJobs, setSavedJobs] = useState<VerifiedJobOpportunity[]>([]);
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
+  const [interviewSessions, setInterviewSessions] = useState<InterviewSession[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadedCareerPlan, setLoadedCareerPlan] = useState<CareerPlan | null>(careerPlan || null);
   const [loadedInterviewMetrics, setLoadedInterviewMetrics] = useState<InterviewDashboardMetrics | null>(interviewMetrics || null);
 
-  // Modal states
+  // Modal & context states
   const [selectedJobForDetail, setSelectedJobForDetail] = useState<VerifiedJobOpportunity | null>(null);
   const [selectedJobForDraft, setSelectedJobForDraft] = useState<VerifiedJobOpportunity | null>(null);
   const [editingApplication, setEditingApplication] = useState<ApplicationRecord | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [interviewPrepContext, setInterviewPrepContext] = useState<{
+    targetRole?: string;
+    type?: any;
+    projectTitle?: string;
+  } | null>(null);
 
   // Student placement context derived from profile, resume, and setup
   const studentContext = useMemo(() => {
@@ -106,12 +116,14 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
     async function initData() {
       setIsLoading(true);
       try {
-        const [loadedSaved, loadedApps] = await Promise.all([
+        const [loadedSaved, loadedApps, loadedSessions] = await Promise.all([
           loadSavedJobs(userId),
           loadApplications(userId),
+          loadInterviewSessions(userId),
         ]);
         setSavedJobs(loadedSaved);
         setApplications(loadedApps);
+        setInterviewSessions(loadedSessions);
       } catch (err) {
         console.warn('Failed to load placement persistence:', err);
       } finally {
@@ -227,6 +239,15 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
       eligibilityStatus: eligibility?.overallStatus,
       eligibilitySummary: eligibility?.summary,
       deadline: job.applicationDeadline,
+      jobDescriptionSnapshot: job.description,
+      timeline: [
+        {
+          stage: 'preparing',
+          timestamp: new Date().toISOString(),
+          note: `Discovered & tracked from ${job.sourceName}`,
+        },
+      ],
+      reminders: [],
       notes: `Discovered on ProFile. Match score: ${match?.matchScore || 0}%.`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -248,6 +269,8 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
     { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
     { id: 'discovery', label: 'Job Discovery', icon: Compass },
     { id: 'tracker', label: 'Application Tracker', icon: Briefcase },
+    { id: 'readiness', label: 'Career Readiness', icon: TrendingUp },
+    { id: 'interview', label: 'Interview Prep', icon: MessageSquare },
     { id: 'saved', label: 'Saved Jobs', icon: Bookmark },
   ];
 
@@ -342,6 +365,10 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
                   setEditingApplication(null);
                   setIsAddModalOpen(true);
                 }}
+                onStartInterviewPrep={(ctx) => {
+                  setInterviewPrepContext(ctx || null);
+                  setActiveTab('interview');
+                }}
               />
             )}
 
@@ -376,6 +403,37 @@ export const PlacementIntelligenceWorkspace: React.FC<PlacementIntelligenceWorks
                   setEditingApplication(app);
                   setIsAddModalOpen(true);
                 }}
+                onOpenAiAssistant={(jobId) => {
+                  const job = VERIFIED_JOB_OPPORTUNITIES.find((j) => j.id === jobId);
+                  if (job) setSelectedJobForDraft(job);
+                }}
+              />
+            )}
+
+            {activeTab === 'readiness' && (
+              <CareerReadinessWorkspace
+                userId={userId}
+                studentContext={studentContext}
+                resumeData={resumeData}
+                applications={applications}
+                interviewSessions={interviewSessions}
+                onStartInterviewPrep={(ctx) => {
+                  setInterviewPrepContext(ctx || null);
+                  setActiveTab('interview');
+                }}
+                onNavigateToDiscovery={() => setActiveTab('discovery')}
+                onNavigateToTracker={() => setActiveTab('tracker')}
+              />
+            )}
+
+            {activeTab === 'interview' && (
+              <InteractiveInterviewWorkspace
+                userId={userId}
+                studentContext={studentContext}
+                resumeData={resumeData}
+                initialInterviewType={interviewPrepContext?.type}
+                initialProjectTitle={interviewPrepContext?.projectTitle}
+                onNavigateToReadiness={() => setActiveTab('readiness')}
               />
             )}
 

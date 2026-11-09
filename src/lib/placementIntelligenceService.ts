@@ -12,6 +12,7 @@ import { db } from './firebase.ts';
 import {
   VerifiedJobOpportunity,
   ApplicationRecord,
+  ApplicationReminder,
   ApplicationDraft,
   ApplicationStatus,
   PlacementAnalytics,
@@ -142,7 +143,26 @@ export async function loadApplications(userId: string | undefined): Promise<Appl
 }
 
 /**
- * Saves or updates an application record.
+ * Helper to remove undefined fields recursively for Firestore compatibility.
+ */
+export function cleanFirestoreData<T>(obj: T): T {
+  if (obj === null || obj === undefined || typeof obj !== 'object') {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => cleanFirestoreData(item)) as unknown as T;
+  }
+  const cleaned: Record<string, any> = {};
+  for (const [key, val] of Object.entries(obj as Record<string, any>)) {
+    if (val !== undefined) {
+      cleaned[key] = cleanFirestoreData(val);
+    }
+  }
+  return cleaned as T;
+}
+
+/**
+ * Saves or updates an application record with timeline history.
  */
 export async function saveApplication(
   userId: string | undefined,
@@ -150,8 +170,15 @@ export async function saveApplication(
 ): Promise<void> {
   const key = `${APPLICATIONS_LOCAL_STORAGE_PREFIX}${userId || 'guest'}`;
   const now = new Date().toISOString();
+
+  // Ensure timeline is initialized with at least the current stage
+  const timeline = appRecord.timeline && appRecord.timeline.length > 0
+    ? appRecord.timeline
+    : [{ stage: appRecord.status, timestamp: now, note: 'Application created in tracker' }];
+
   const recordWithDates: ApplicationRecord = {
     ...appRecord,
+    timeline,
     updatedAt: now,
     createdAt: appRecord.createdAt || now,
   };
@@ -167,7 +194,7 @@ export async function saveApplication(
   if (userId && db) {
     try {
       const docRef = doc(db, 'users', userId, 'applications', recordWithDates.id);
-      await setDoc(docRef, recordWithDates);
+      await setDoc(docRef, cleanFirestoreData(recordWithDates));
     } catch (err) {
       console.warn('[PlacementService] Firestore saveApplication error:', err);
     }
@@ -201,7 +228,7 @@ export async function deleteApplication(
 }
 
 /**
- * Updates application status, notes, and dates.
+ * Updates application status, notes, dates, and logs timeline transition.
  */
 export async function updateApplicationStatus(
   userId: string | undefined,
@@ -211,25 +238,122 @@ export async function updateApplicationStatus(
     notes?: string;
     nextFollowUpDate?: string;
     interviewDate?: string;
+    assessmentDate?: string;
     appliedDate?: string;
+    stageNote?: string;
   }
 ): Promise<ApplicationRecord | null> {
   const apps = await loadApplications(userId);
   const target = apps.find((a) => a.id === applicationId);
   if (!target) return null;
 
+  const now = new Date().toISOString();
+  const existingTimeline = target.timeline || [];
+
+  // Append transition to timeline if stage changed or note supplied
+  const updatedTimeline = [
+    ...existingTimeline,
+    {
+      stage: newStatus,
+      timestamp: now,
+      note: updates?.stageNote || (target.status !== newStatus ? `Moved from ${target.status} to ${newStatus}` : updates?.notes),
+    },
+  ];
+
   const updated: ApplicationRecord = {
     ...target,
     status: newStatus,
+    timeline: updatedTimeline,
     appliedDate:
-      newStatus === 'applied' && !target.appliedDate
-        ? new Date().toISOString().split('T')[0]
-        : updates?.appliedDate ?? target.appliedDate,
+      updates?.appliedDate !== undefined
+        ? updates.appliedDate
+        : newStatus === 'applied' && !target.appliedDate
+          ? new Date().toISOString().split('T')[0]
+          : target.appliedDate,
     notes: updates?.notes !== undefined ? updates.notes : target.notes,
     nextFollowUpDate:
       updates?.nextFollowUpDate !== undefined ? updates.nextFollowUpDate : target.nextFollowUpDate,
+    assessmentDate:
+      updates?.assessmentDate !== undefined ? updates.assessmentDate : target.assessmentDate,
     interviewDate:
       updates?.interviewDate !== undefined ? updates.interviewDate : target.interviewDate,
+    updatedAt: now,
+  };
+
+  await saveApplication(userId, updated);
+  return updated;
+}
+
+/**
+ * Adds a reminder to an application.
+ */
+export async function addApplicationReminder(
+  userId: string | undefined,
+  applicationId: string,
+  reminder: Omit<ApplicationReminder, 'id'>
+): Promise<ApplicationRecord | null> {
+  const apps = await loadApplications(userId);
+  const target = apps.find((a) => a.id === applicationId);
+  if (!target) return null;
+
+  const newReminder = {
+    id: `rem_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    ...reminder,
+  };
+
+  const updatedReminders = [...(target.reminders || []), newReminder];
+  const updated: ApplicationRecord = {
+    ...target,
+    reminders: updatedReminders,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await saveApplication(userId, updated);
+  return updated;
+}
+
+/**
+ * Toggles completion status of a reminder.
+ */
+export async function toggleApplicationReminder(
+  userId: string | undefined,
+  applicationId: string,
+  reminderId: string
+): Promise<ApplicationRecord | null> {
+  const apps = await loadApplications(userId);
+  const target = apps.find((a) => a.id === applicationId);
+  if (!target) return null;
+
+  const updatedReminders = (target.reminders || []).map((r) =>
+    r.id === reminderId ? { ...r, completed: !r.completed } : r
+  );
+
+  const updated: ApplicationRecord = {
+    ...target,
+    reminders: updatedReminders,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await saveApplication(userId, updated);
+  return updated;
+}
+
+/**
+ * Deletes a reminder from an application.
+ */
+export async function deleteApplicationReminder(
+  userId: string | undefined,
+  applicationId: string,
+  reminderId: string
+): Promise<ApplicationRecord | null> {
+  const apps = await loadApplications(userId);
+  const target = apps.find((a) => a.id === applicationId);
+  if (!target) return null;
+
+  const updatedReminders = (target.reminders || []).filter((r) => r.id !== reminderId);
+  const updated: ApplicationRecord = {
+    ...target,
+    reminders: updatedReminders,
     updatedAt: new Date().toISOString(),
   };
 

@@ -109,15 +109,19 @@ function getCuratedFallbackQuestions(input: QuestionGenerationInput): InterviewQ
   const categoryKey = input.category === 'mixed-comprehensive' ? 'technical-fundamentals' : input.category;
   const list = FALLBACK_QUESTIONS_BY_CATEGORY[categoryKey] || FALLBACK_QUESTIONS_BY_CATEGORY['technical-fundamentals'];
 
-  // If resume-focused, synthesize from candidate's actual projects
-  if (input.category === 'resume-focused' && input.projectsSummary && input.projectsSummary.length > 0) {
+  // If resume-focused or project-defense, synthesize from candidate's actual projects
+  if (
+    (input.category === 'resume-focused' || input.category === 'project-defense') &&
+    input.projectsSummary &&
+    input.projectsSummary.length > 0
+  ) {
     const proj = input.projectsSummary[0];
     const tech = proj.techStack.join(', ') || 'the chosen technology';
     return [
       {
-        id: `q_rf_1_${Date.now()}`,
+        id: `q_pd_1_${Date.now()}`,
         question: `In your project "${proj.title}", walk me through why you selected ${tech}. What alternative approaches did you consider?`,
-        category: 'resume-focused',
+        category: input.category,
         difficulty: input.difficulty,
         whyAsked: 'Assesses whether the candidate makes conscious architectural choices or merely copies tutorial code.',
         topic: 'Technology Selection & Trade-offs',

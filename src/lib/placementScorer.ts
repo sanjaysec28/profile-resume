@@ -890,9 +890,13 @@ export function evaluateJobEligibility(
   // -------------------------------------------------------------
   // 5. Core Technical Skills Check
   // -------------------------------------------------------------
+  const candidateTech = Array.isArray(context.technicalSkills)
+    ? context.technicalSkills
+    : (Array.isArray((context as any).skills) ? (context as any).skills : []);
+  const candidateProjects = Array.isArray(context.projects) ? context.projects : [];
   const allCandidateSkills = [
-    ...context.technicalSkills,
-    ...context.projects.flatMap((p) => p.techStack),
+    ...candidateTech,
+    ...candidateProjects.flatMap((p) => (Array.isArray(p.techStack) ? p.techStack : [])),
   ];
 
   const matchedRequiredCount = job.requiredSkills.filter((rs) =>

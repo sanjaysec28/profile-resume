@@ -52,12 +52,26 @@ export const AddApplicationModal: React.FC<AddApplicationModalProps> = ({
   );
   const [deadline, setDeadline] = useState(initialData?.deadline || '');
   const [nextFollowUpDate, setNextFollowUpDate] = useState(initialData?.nextFollowUpDate || '');
+  const [assessmentDate, setAssessmentDate] = useState(initialData?.assessmentDate || '');
   const [interviewDate, setInterviewDate] = useState(initialData?.interviewDate || '');
+  const [resumeVersionUsed, setResumeVersionUsed] = useState(initialData?.resumeVersionUsed || 'Current ProFile Resume');
+  const [recruiterName, setRecruiterName] = useState(initialData?.recruiterContact?.name || '');
+  const [recruiterEmail, setRecruiterEmail] = useState(initialData?.recruiterContact?.email || '');
+  const [recruiterRole, setRecruiterRole] = useState(initialData?.recruiterContact?.role || '');
+  const [jobDescriptionSnapshot, setJobDescriptionSnapshot] = useState(initialData?.jobDescriptionSnapshot || '');
   const [notes, setNotes] = useState(initialData?.notes || '');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!jobTitle.trim() || !company.trim()) return;
+
+    const recruiterContact = (recruiterName.trim() || recruiterEmail.trim() || recruiterRole.trim())
+      ? {
+          name: recruiterName.trim() || undefined,
+          email: recruiterEmail.trim() || undefined,
+          role: recruiterRole.trim() || undefined,
+        }
+      : undefined;
 
     const record: ApplicationRecord = {
       id: initialData?.id || `app_${Date.now()}`,
@@ -73,9 +87,25 @@ export const AddApplicationModal: React.FC<AddApplicationModalProps> = ({
       appliedDate: appliedDate || undefined,
       deadline: deadline || undefined,
       status,
+      resumeVersionUsed: resumeVersionUsed.trim() || undefined,
+      recruiterContact,
+      jobDescriptionSnapshot: jobDescriptionSnapshot.trim() || undefined,
       notes: notes.trim() || undefined,
       nextFollowUpDate: nextFollowUpDate || undefined,
+      assessmentDate: assessmentDate || undefined,
       interviewDate: interviewDate || undefined,
+      timeline: initialData?.timeline || [
+        {
+          stage: status,
+          timestamp: new Date().toISOString(),
+          note: initialData ? 'Application details updated' : 'Tracked in application pipeline',
+        },
+      ],
+      reminders: initialData?.reminders || [],
+      checklist: initialData?.checklist || [],
+      matchScore: initialData?.matchScore,
+      eligibilityStatus: initialData?.eligibilityStatus,
+      eligibilitySummary: initialData?.eligibilitySummary,
       createdAt: initialData?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -232,23 +262,61 @@ export const AddApplicationModal: React.FC<AddApplicationModalProps> = ({
             />
           </div>
 
-          {/* Dates Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+          {/* Dates Grid: 4 columns */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1">
             <div>
-              <label className="block text-xs font-bold text-[#666666] uppercase tracking-wider mb-1">
+              <label className="block text-[11px] font-bold text-[#666666] uppercase tracking-wider mb-1">
                 Date Applied
               </label>
               <input
                 type="date"
                 value={appliedDate}
                 onChange={(e) => setAppliedDate(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-[#E5E0D8] rounded-xl text-xs text-[#101010] focus:outline-none"
+                className="w-full px-2.5 py-1.5 bg-white border border-[#E5E0D8] rounded-xl text-xs text-[#101010] focus:outline-none"
               />
             </div>
 
             <div>
+              <label className="block text-[11px] font-bold text-[#666666] uppercase tracking-wider mb-1">
+                Deadline
+              </label>
+              <input
+                type="date"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-white border border-[#E5E0D8] rounded-xl text-xs text-[#101010] focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-[#666666] uppercase tracking-wider mb-1">
+                Assessment Date
+              </label>
+              <input
+                type="date"
+                value={assessmentDate}
+                onChange={(e) => setAssessmentDate(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-white border border-[#E5E0D8] rounded-xl text-xs text-[#101010] focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-[#666666] uppercase tracking-wider mb-1">
+                Interview Date
+              </label>
+              <input
+                type="date"
+                value={interviewDate}
+                onChange={(e) => setInterviewDate(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-white border border-[#E5E0D8] rounded-xl text-xs text-[#101010] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
               <label className="block text-xs font-bold text-[#666666] uppercase tracking-wider mb-1">
-                Next Follow-up
+                Next Action / Follow-up Date
               </label>
               <input
                 type="date"
@@ -260,23 +328,54 @@ export const AddApplicationModal: React.FC<AddApplicationModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-[#666666] uppercase tracking-wider mb-1">
-                Interview Date
+                Resume Version Used
               </label>
               <input
-                type="date"
-                value={interviewDate}
-                onChange={(e) => setInterviewDate(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-[#E5E0D8] rounded-xl text-xs text-[#101010] focus:outline-none"
+                type="text"
+                value={resumeVersionUsed}
+                onChange={(e) => setResumeVersionUsed(e.target.value)}
+                placeholder="e.g. Software_Resume_v2, Modern_Template"
+                className="w-full px-3.5 py-2 bg-white border border-[#E5E0D8] rounded-xl text-xs sm:text-sm text-[#101010] focus:outline-none focus:border-[#101010]"
+              />
+            </div>
+          </div>
+
+          {/* Recruiter & Contact Information */}
+          <div className="p-3.5 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl space-y-2">
+            <span className="text-[11px] font-bold text-[#101010] uppercase tracking-wider block">
+              Recruiter / Contact Information (Optional)
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <input
+                type="text"
+                value={recruiterName}
+                onChange={(e) => setRecruiterName(e.target.value)}
+                placeholder="Name (e.g. Sarah Jenkins)"
+                className="px-3 py-1.5 bg-white border border-[#E5E0D8] rounded-lg text-xs text-[#101010] focus:outline-none"
+              />
+              <input
+                type="email"
+                value={recruiterEmail}
+                onChange={(e) => setRecruiterEmail(e.target.value)}
+                placeholder="Email (e.g. sjenkins@company.com)"
+                className="px-3 py-1.5 bg-white border border-[#E5E0D8] rounded-lg text-xs text-[#101010] focus:outline-none"
+              />
+              <input
+                type="text"
+                value={recruiterRole}
+                onChange={(e) => setRecruiterRole(e.target.value)}
+                placeholder="Role (e.g. University Recruiter)"
+                className="px-3 py-1.5 bg-white border border-[#E5E0D8] rounded-lg text-xs text-[#101010] focus:outline-none"
               />
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-[#666666] uppercase tracking-wider mb-1">
-              Private Notes
+              Private Notes & Next Actions
             </label>
             <textarea
-              rows={3}
+              rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. Applied via referral from alum; submitted resume v2; technical screening scheduled for Thursday..."

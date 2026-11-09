@@ -60,6 +60,13 @@ import {
   validateImageFile,
   checkCloudinaryConfig,
 } from '../../lib/cloudinary.ts';
+import { PersonalizationGoalsCard } from '../../features/personalization/index.ts';
+import {
+  StudentCareerGoals,
+  DEFAULT_CAREER_GOALS,
+  StudentIntelligenceProfile,
+} from '../../types/personalization.ts';
+import { loadStudentCareerGoals } from '../../lib/studentPersonalizationService.ts';
 
 interface MyProfilePageProps {
   profile: StudentProfile;
@@ -69,6 +76,9 @@ interface MyProfilePageProps {
   onNavigateToBuilder: () => void;
   onNavigateToAts: () => void;
   onSignOut?: () => void;
+  goals?: StudentCareerGoals;
+  onUpdateGoals?: (updated: StudentCareerGoals) => void;
+  intelligence?: StudentIntelligenceProfile;
 }
 
 export function MyProfilePage({
@@ -79,6 +89,9 @@ export function MyProfilePage({
   onNavigateToBuilder,
   onNavigateToAts,
   onSignOut,
+  goals,
+  onUpdateGoals,
+  intelligence,
 }: MyProfilePageProps) {
   const { user, isConfigured } = useAuth();
 
@@ -87,6 +100,28 @@ export function MyProfilePage({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Persistent student goals state
+  const [currentGoals, setCurrentGoals] = useState<StudentCareerGoals>(goals || DEFAULT_CAREER_GOALS);
+
+  React.useEffect(() => {
+    if (goals) {
+      setCurrentGoals(goals);
+    } else {
+      loadStudentCareerGoals(user?.uid, {
+        targetRole: profile.targetRole,
+        location: profile.location,
+      }).then((loaded) => setCurrentGoals(loaded));
+    }
+  }, [goals, user?.uid, profile.targetRole, profile.location]);
+
+  const handleGoalsUpdated = (updated: StudentCareerGoals) => {
+    setCurrentGoals(updated);
+    if (onUpdateGoals) {
+      onUpdateGoals(updated);
+    }
+    showToast('Career goals and personalization preferences updated!');
   };
 
   // Dialog states
@@ -526,6 +561,16 @@ export function MyProfilePage({
           </div>
         </div>
       </section>
+
+      {/* =========================================================================
+       * 2. CAREER GOALS & PERSONALIZATION INTELLIGENCE (Phase D.7.2)
+       * ========================================================================= */}
+      <PersonalizationGoalsCard
+        userId={user?.uid}
+        goals={currentGoals}
+        intelligence={intelligence}
+        onGoalsUpdated={handleGoalsUpdated}
+      />
 
       {/* =========================================================================
        * 3. EDUCATION

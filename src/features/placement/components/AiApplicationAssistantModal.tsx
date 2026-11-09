@@ -67,7 +67,7 @@ export const AiApplicationAssistantModal: React.FC<AiApplicationAssistantModalPr
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const [isApproved, setIsApproved] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'cover-letter' | 'email' | 'outreach' | 'qa' | 'projects'>('cover-letter');
+  const [activeTab, setActiveTab] = useState<'brief' | 'cover-letter' | 'email' | 'outreach' | 'qa' | 'projects'>('brief');
   const [isEditing, setIsEditing] = useState<boolean>(false);
 
   useEffect(() => {
@@ -147,10 +147,11 @@ export const AiApplicationAssistantModal: React.FC<AiApplicationAssistantModalPr
         {/* Tab Switcher */}
         <div className="px-5 sm:px-6 pt-3 border-b border-[#E8E2D7] bg-white flex items-center gap-2 overflow-x-auto scrollbar-none">
           {[
+            { id: 'brief', label: 'Role Brief & Checklist', icon: CheckCircle2 },
             { id: 'cover-letter', label: 'Tailored Cover Letter', icon: FileText },
-            { id: 'email', label: 'Application Email', icon: Mail },
+            { id: 'email', label: 'Email & Follow-Up', icon: Mail },
             { id: 'outreach', label: 'Recruiter Outreach', icon: Send },
-            { id: 'qa', label: 'Application Q&A', icon: HelpCircle },
+            { id: 'qa', label: 'Q&A & Interview Prep', icon: HelpCircle },
             { id: 'projects', label: 'Highlighted Projects', icon: Layers },
           ].map((t) => {
             const Icon = t.icon;
@@ -221,6 +222,73 @@ export const AiApplicationAssistantModal: React.FC<AiApplicationAssistantModalPr
                 </div>
               </div>
 
+              {/* TAB 0: ROLE BRIEF & APPLICATION CHECKLIST */}
+              {activeTab === 'brief' && (
+                <div className="space-y-4 animate-fadeIn">
+                  {/* Role Understanding */}
+                  <div className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl space-y-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#101010]">
+                      Role Understanding & Context
+                    </span>
+                    <p className="text-xs sm:text-sm text-[#333333] leading-relaxed">
+                      {draft.roleSummary || `${job.title} at ${job.company}. Focuses on delivering scalable software features.`}
+                    </p>
+                  </div>
+
+                  {/* Application Checklist */}
+                  {draft.checklist && draft.checklist.length > 0 && (
+                    <div className="p-4 bg-white border border-[#EAE5DC] rounded-xl space-y-2.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#101010]">
+                        Application Preparation Checklist
+                      </span>
+                      <div className="space-y-2">
+                        {draft.checklist.map((item, idx) => (
+                          <div key={idx} className="flex items-start gap-2 text-xs text-[#444444]">
+                            <span className="w-4 h-4 rounded bg-stone-100 border border-stone-300 text-stone-700 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                              {idx + 1}
+                            </span>
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Document Audit & Resume Suggestions */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Missing Documents Check */}
+                    <div className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#101010]">
+                        Required Documents Checklist
+                      </span>
+                      <ul className="space-y-1.5 text-xs text-[#555555]">
+                        {(draft.missingDocuments || ['Updated Resume (PDF)', 'Academic Transcript', 'GitHub Project Link']).map((docItem, idx) => (
+                          <li key={idx} className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#101010]" />
+                            <span>{docItem}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Resume Improvements */}
+                    <div className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#101010]">
+                        Resume Target Tailoring
+                      </span>
+                      <ul className="space-y-1.5 text-xs text-[#555555]">
+                        {(draft.resumeImprovements || ['Highlight required skills prominently in project bullets', 'Verify contact information and graduation date']).map((imp, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-[#101010] font-bold">•</span>
+                            <span>{imp}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* TAB 1: COVER LETTER */}
               {activeTab === 'cover-letter' && (
                 <div className="space-y-4 animate-fadeIn">
@@ -254,29 +322,30 @@ export const AiApplicationAssistantModal: React.FC<AiApplicationAssistantModalPr
                 </div>
               )}
 
-              {/* TAB 2: APPLICATION EMAIL */}
+              {/* TAB 2: APPLICATION EMAIL & FOLLOW-UP */}
               {activeTab === 'email' && (
-                <div className="space-y-4 animate-fadeIn">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#666666]">
-                      Application Email (Direct to Recruiter / Careers Inbox)
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleCopy(
-                          'email',
-                          `Subject: ${draft.applicationEmailSubject || ''}\n\n${draft.applicationEmailBody || ''}`
-                        )
-                      }
-                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FAF9F5] border border-[#E5E0D8] rounded-lg text-xs font-semibold text-[#101010] hover:bg-[#EAE5DC] cursor-pointer"
-                    >
-                      {copiedSection === 'email' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedSection === 'email' ? 'Copied' : 'Copy Full Email'}</span>
-                    </button>
-                  </div>
-
+                <div className="space-y-6 animate-fadeIn">
+                  {/* Initial Application Email */}
                   <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#666666]">
+                        Application Email (Direct Submission)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleCopy(
+                            'email',
+                            `Subject: ${draft.applicationEmailSubject || ''}\n\n${draft.applicationEmailBody || ''}`
+                          )
+                        }
+                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FAF9F5] border border-[#E5E0D8] rounded-lg text-xs font-semibold text-[#101010] hover:bg-[#EAE5DC] cursor-pointer"
+                      >
+                        {copiedSection === 'email' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedSection === 'email' ? 'Copied' : 'Copy Application Email'}</span>
+                      </button>
+                    </div>
+
                     <div>
                       <label className="block text-[11px] font-bold uppercase tracking-wider text-[#666666] mb-1">
                         Subject Line
@@ -303,16 +372,50 @@ export const AiApplicationAssistantModal: React.FC<AiApplicationAssistantModalPr
                         <textarea
                           value={draft.applicationEmailBody || ''}
                           onChange={(e) => setDraft({ ...draft, applicationEmailBody: e.target.value })}
-                          className="w-full p-4 bg-white border border-[#E5E0D8] rounded-xl text-xs sm:text-sm leading-relaxed focus:outline-none focus:border-[#101010] min-h-[200px]"
-                          rows={8}
+                          className="w-full p-4 bg-white border border-[#E5E0D8] rounded-xl text-xs sm:text-sm leading-relaxed focus:outline-none focus:border-[#101010] min-h-[160px]"
+                          rows={6}
                         />
                       ) : (
                         <div className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl text-xs sm:text-sm text-[#222222] whitespace-pre-line leading-relaxed">
-                          {draft.applicationEmailBody ||
-                            `Dear Hiring Team at ${job.company},\n\nI am writing to submit my application for the ${job.title} position. Attached please find my resume detailing my projects and coursework.\n\nThank you for your consideration.\n\nSincerely,\n${studentContext.studentName || 'Student'}`}
+                          {draft.applicationEmailBody}
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* 7-10 Day Follow-Up Email */}
+                  <div className="space-y-3 pt-4 border-t border-[#E8E2D7]">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-[#666666]">
+                          Follow-Up Email (7–10 Days After Applying)
+                        </span>
+                        <div className="text-[11px] text-[#888888] mt-0.5">
+                          Polite check-in if you haven't received confirmation or a status update.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy('followup', draft.recruiterFollowUpMessage || '')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FAF9F5] border border-[#E5E0D8] rounded-lg text-xs font-semibold text-[#101010] hover:bg-[#EAE5DC] cursor-pointer"
+                      >
+                        {copiedSection === 'followup' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedSection === 'followup' ? 'Copied' : 'Copy Follow-up'}</span>
+                      </button>
+                    </div>
+
+                    {isEditing ? (
+                      <textarea
+                        value={draft.recruiterFollowUpMessage || ''}
+                        onChange={(e) => setDraft({ ...draft, recruiterFollowUpMessage: e.target.value })}
+                        className="w-full p-4 bg-white border border-[#E5E0D8] rounded-xl text-xs sm:text-sm leading-relaxed focus:outline-none focus:border-[#101010] min-h-[120px]"
+                        rows={4}
+                      />
+                    ) : (
+                      <div className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl text-xs sm:text-sm text-[#222222] whitespace-pre-line leading-relaxed">
+                        {draft.recruiterFollowUpMessage || `Hi [Hiring Team],\n\nI wanted to follow up on my recent application for the ${job.title} position. I remain very interested in the role and would appreciate any update on next steps.\n\nThank you!\n${studentContext.studentName || 'Student'}`}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -321,9 +424,14 @@ export const AiApplicationAssistantModal: React.FC<AiApplicationAssistantModalPr
               {activeTab === 'outreach' && (
                 <div className="space-y-4 animate-fadeIn">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#666666]">
-                      LinkedIn / InMail Outreach Note
-                    </span>
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#666666]">
+                        LinkedIn / InMail Outreach Note
+                      </span>
+                      <div className="text-[11px] text-[#888888] mt-0.5">
+                        Concise networking note for direct recruiter outreach (under 120 words).
+                      </div>
+                    </div>
                     <button
                       type="button"
                       onClick={() => handleCopy('outreach', draft.recruiterOutreachMessage || '')}
@@ -349,36 +457,62 @@ export const AiApplicationAssistantModal: React.FC<AiApplicationAssistantModalPr
                 </div>
               )}
 
-              {/* TAB 3: APPLICATION Q&A */}
+              {/* TAB 4: APPLICATION Q&A & INTERVIEW PREP */}
               {activeTab === 'qa' && (
-                <div className="space-y-4 animate-fadeIn">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#666666]">
-                    Prepared Application Form Answers
-                  </span>
-
+                <div className="space-y-5 animate-fadeIn">
+                  {/* Application Form Q&A */}
                   <div className="space-y-3">
-                    {draft.commonQuestionsAnswers?.map((qa, idx) => (
-                      <div key={idx} className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="text-xs font-bold text-[#101010]">{qa.question}</h4>
-                          <button
-                            onClick={() => handleCopy(`qa_${idx}`, qa.suggestedAnswer)}
-                            className="p-1 text-[#888888] hover:text-[#101010] cursor-pointer"
-                            title="Copy Answer"
-                          >
-                            {copiedSection === `qa_${idx}` ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                          </button>
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#666666]">
+                      Application Form Answers
+                    </span>
+
+                    <div className="space-y-3">
+                      {draft.commonQuestionsAnswers?.map((qa, idx) => (
+                        <div key={idx} className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="text-xs font-bold text-[#101010]">{qa.question}</h4>
+                            <button
+                              onClick={() => handleCopy(`qa_${idx}`, qa.suggestedAnswer)}
+                              className="p-1 text-[#888888] hover:text-[#101010] cursor-pointer"
+                              title="Copy Answer"
+                            >
+                              {copiedSection === `qa_${idx}` ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                          <p className="text-xs text-[#444444] leading-relaxed">
+                            {qa.suggestedAnswer}
+                          </p>
                         </div>
-                        <p className="text-xs text-[#444444] leading-relaxed">
-                          {qa.suggestedAnswer}
-                        </p>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Interview Preparation Recommendations */}
+                  <div className="space-y-3 pt-3 border-t border-[#E8E2D7]">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#666666]">
+                      Interview Preparation Recommendations
+                    </span>
+                    <div className="p-4 bg-[#FAF9F5] border border-[#EAE5DC] rounded-xl space-y-2">
+                      <ul className="space-y-2 text-xs text-[#333333]">
+                        {(draft.interviewRecommendations || [
+                          'Review algorithmic complexity and data structures',
+                          'Be ready to explain project architecture and trade-offs',
+                          'Research recent product launches at the employer',
+                        ]).map((rec, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="w-4 h-4 rounded bg-[#101010] text-[#F8F5EE] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                              {idx + 1}
+                            </span>
+                            <span>{rec}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* TAB 4: HIGHLIGHTED PROJECTS */}
+              {/* TAB 5: HIGHLIGHTED PROJECTS */}
               {activeTab === 'projects' && (
                 <div className="space-y-4 animate-fadeIn">
                   <span className="text-xs font-bold uppercase tracking-wider text-[#666666]">

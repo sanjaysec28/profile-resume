@@ -18,9 +18,20 @@ export type InterviewCategory =
   | 'hr-behavioral'
   | 'internship-placement'
   | 'mixed-comprehensive'
-  | 'resume-focused';
+  | 'resume-focused'
+  | 'project-defense'
+  | 'role-specific';
 
 export type QuestionDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface AnswerRubricScore {
+  technicalCorrectness: number; // 0 - 10
+  clarity: number; // 0 - 10
+  structure: number; // 0 - 10
+  problemSolvingApproach: number; // 0 - 10
+  communication: number; // 0 - 10
+  relevance: number; // 0 - 10
+}
 
 export interface InterviewQuestion {
   id: string;
@@ -40,12 +51,15 @@ export interface EvaluatedAnswer {
   studentAnswer: string;
   answerMode: 'text' | 'voice';
   score: number; // 0 - 100 qualitative AI estimate
+  rubric?: AnswerRubricScore;
   whatWasDoneWell: string[];
   whatWasMissing: string[];
   improvementSuggestions: string[];
   exampleStrongerAnswer: string;
   relatedTopicsToRevise: string[];
   evaluatedAt: string;
+  isApprovedByStudent?: boolean;
+  savedToProfileNotes?: boolean;
 }
 
 export type InterviewSessionStatus = 'configuring' | 'in-progress' | 'paused' | 'completed';

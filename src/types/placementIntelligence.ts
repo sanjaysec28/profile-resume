@@ -103,6 +103,29 @@ export type ApplicationStatus =
   | 'rejected'
   | 'withdrawn';
 
+export interface ApplicationTimelineEvent {
+  stage: ApplicationStatus;
+  timestamp: string;
+  note?: string;
+}
+
+export interface ApplicationReminder {
+  id: string;
+  title: string;
+  dueDate: string; // YYYY-MM-DD or ISO string
+  type: 'deadline' | 'assessment' | 'interview' | 'followup' | 'personal';
+  completed: boolean;
+  notes?: string;
+}
+
+export interface RecruiterContact {
+  name?: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+  notes?: string;
+}
+
 export interface ApplicationRecord {
   id: string;
   userId?: string;
@@ -126,8 +149,14 @@ export interface ApplicationRecord {
   coverLetterDraftId?: string;
   notes?: string;
   nextFollowUpDate?: string;
+  assessmentDate?: string;
   interviewDate?: string;
   salaryOffered?: string;
+  recruiterContact?: RecruiterContact;
+  jobDescriptionSnapshot?: string;
+  timeline?: ApplicationTimelineEvent[];
+  reminders?: ApplicationReminder[];
+  checklist?: { id: string; label: string; completed: boolean }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -137,6 +166,10 @@ export interface ApplicationDraft {
   jobId: string;
   jobTitle: string;
   company: string;
+  roleSummary?: string;
+  checklist?: string[];
+  missingDocuments?: string[];
+  resumeImprovements?: string[];
   tailoredSummary?: string;
   highlightedProjects: {
     title: string;
@@ -144,12 +177,14 @@ export interface ApplicationDraft {
   }[];
   tailoredCoverLetter?: string;
   recruiterOutreachMessage?: string;
+  recruiterFollowUpMessage?: string;
   applicationEmailSubject?: string;
   applicationEmailBody?: string;
   commonQuestionsAnswers?: {
     question: string;
     suggestedAnswer: string;
   }[];
+  interviewRecommendations?: string[];
   missingInformationNoticed: string[];
   generatedAt: string;
   isApprovedByStudent: boolean;

@@ -20,8 +20,12 @@ import { generateInterviewQuestions } from './src/server/generateInterviewQuesti
 import { evaluateInterviewAnswer } from './src/server/evaluateInterviewAnswer.ts';
 import { chatWithInterviewCoach } from './src/server/interviewCoachChat.ts';
 import { generateApplicationDraft } from './src/server/generateApplicationDraft.ts';
+import { processUnifiedAssistantChat } from './src/server/unifiedAssistantChat.ts';
 
 import { getGeminiClient } from './src/server/geminiConfig.ts';
+import { aiRateLimiterMiddleware } from './src/server/aiRateLimiter.ts';
+import { createStructuredAiError, validateAiRequestBody } from './src/server/aiSecurity.ts';
+import { getAiDiagnosticsHistory, createRequestId } from './src/server/aiDiagnostics.ts';
 
 dotenv.config();
 
@@ -34,6 +38,25 @@ async function startServer() {
   const isProduction = process.env.NODE_ENV === 'production';
 
   app.use(express.json({ limit: '5mb' }));
+
+  // Attach request ID and rate limiter to all API endpoints (Phase D.7.3)
+  app.use('/api', (req: Request, res: Response, next) => {
+    const reqId = (req.headers['x-request-id'] as string) || createRequestId();
+    res.setHeader('X-Request-Id', reqId);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    next();
+  });
+  app.use('/api', aiRateLimiterMiddleware);
+
+  // Observability & Diagnostics buffer audit endpoint (Phase D.7.3)
+  app.get('/api/audit/ai-diagnostics', (_req: Request, res: Response) => {
+    const history = getAiDiagnosticsHistory();
+    return res.json({
+      status: 'ok',
+      totalRecorded: history.length,
+      recentDiagnostics: history,
+    });
+  });
 
   // Health and provider status endpoint
   app.get('/api/health', (_req: Request, res: Response) => {
@@ -77,210 +100,223 @@ async function startServer() {
     }
   });
 
-  // Secure AI Resume Recommendations endpoint (Phase 2)
+  // Standardized response helpers for Phase D.7.3
+  function respondStructuredError(
+    res: Response,
+    status: number,
+    code: Parameters<typeof createStructuredAiError>[0],
+    message: string,
+    options?: { isTransient?: boolean; retryAfter?: number; details?: Record<string, any> }
+  ) {
+    const reqId = (res.getHeader('X-Request-Id') as string) || '';
+    const payload = createStructuredAiError(code, message, {
+      requestId: reqId,
+      isTransient: options?.isTransient,
+      retryAfter: options?.retryAfter,
+      details: options?.details,
+    });
+    return res.status(status).json({
+      message,
+      ...payload,
+    });
+  }
+
+  function handleEndpointCatch(err: unknown, res: Response, endpointName: string) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[API ${endpointName} Error]:`, message);
+
+    if (message.includes('GEMINI_API_KEY')) {
+      return respondStructuredError(res, 503, 'AI_SERVICE_UNAVAILABLE', message, { isTransient: false });
+    }
+    if (message.includes('timed out') || message.includes('ETIMEDOUT') || message.includes('DEADLINE_EXCEEDED')) {
+      return respondStructuredError(res, 504, 'GENERATION_TIMEOUT', message, { isTransient: true });
+    }
+    if (message.includes('429') || message.includes('RESOURCE_EXHAUSTED') || message.includes('rate limit')) {
+      return respondStructuredError(res, 429, 'RATE_LIMIT_EXCEEDED', message, { isTransient: true, retryAfter: 5 });
+    }
+    return respondStructuredError(res, 500, 'INTERNAL_ERROR', message, { isTransient: false });
+  }
+
+  // 1. Secure AI Resume Recommendations endpoint (Phase 2)
   app.post('/api/recommendations', async (req: Request, res: Response) => {
     try {
-      const input = req.body;
-      if (!input || !input.targetRole) {
-        return res.status(400).json({
-          error: 'Missing required targetRole in recommendation input.',
-        });
+      const validation = validateAiRequestBody(req.body, ['targetRole']);
+      if (!validation.valid) {
+        return respondStructuredError(res, 400, 'MISSING_INPUT', validation.reason || 'Missing required targetRole.');
       }
 
-      const recommendations = await generateResumeRecommendations(input);
+      const recommendations = await generateResumeRecommendations(req.body);
+      if (recommendations && (recommendations as any).modelUsed) {
+        res.setHeader('X-AI-Model', (recommendations as any).modelUsed);
+      }
       return res.json(recommendations);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('[API /api/recommendations Error]:', message);
-
-      const status = message.includes('GEMINI_API_KEY') ? 503 : 500;
-      return res.status(status).json({
-        error: message,
-      });
+      return handleEndpointCatch(err, res, '/api/recommendations');
     }
   });
 
-  // Secure AI Resume Content Assistant endpoint (Phase 3)
+  // 2. Secure AI Resume Content Assistant endpoint (Phase 3)
   app.post('/api/assistant/content', async (req: Request, res: Response) => {
     try {
-      const input = req.body;
-      if (!input || !input.targetRole || !input.section || !input.action) {
-        return res.status(400).json({
-          error: 'Missing required fields (targetRole, section, or action) in assistant request.',
-        });
+      const validation = validateAiRequestBody(req.body, ['targetRole', 'section', 'action']);
+      if (!validation.valid) {
+        return respondStructuredError(
+          res,
+          400,
+          'MISSING_INPUT',
+          validation.reason || 'Missing required fields (targetRole, section, or action).'
+        );
       }
 
-      const result = await generateResumeContent(input);
+      const result = await generateResumeContent(req.body);
+      if (result && result.modelUsed) {
+        res.setHeader('X-AI-Model', result.modelUsed);
+      }
       return res.json(result);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('[API /api/assistant/content Error]:', message);
-
-      const status = message.includes('GEMINI_API_KEY') ? 503 : 500;
-      return res.status(status).json({
-        error: message,
-      });
+      return handleEndpointCatch(err, res, '/api/assistant/content');
     }
   });
 
-  // Secure AI Resume Final Review endpoint (Phase 4)
+  // 3. Secure AI Resume Final Review endpoint (Phase 4)
   app.post('/api/assistant/review', async (req: Request, res: Response) => {
     try {
-      const input = req.body;
-      if (!input || !input.targetRole || !input.resumeData) {
-        return res.status(400).json({
-          error: 'Missing required fields (targetRole or resumeData) in review request.',
-        });
+      const validation = validateAiRequestBody(req.body, ['targetRole', 'resumeData']);
+      if (!validation.valid) {
+        return respondStructuredError(
+          res,
+          400,
+          'MISSING_INPUT',
+          validation.reason || 'Missing required fields (targetRole or resumeData).'
+        );
       }
 
-      const review = await generateResumeReview(input);
+      const review = await generateResumeReview(req.body);
+      if (review && (review as any).modelUsed) {
+        res.setHeader('X-AI-Model', (review as any).modelUsed);
+      }
       return res.json(review);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('[API /api/assistant/review Error]:', message);
-
-      const status = message.includes('GEMINI_API_KEY') ? 503 : 500;
-      return res.status(status).json({
-        error: message,
-      });
+      return handleEndpointCatch(err, res, '/api/assistant/review');
     }
   });
 
-  // Secure AI Career Intelligence Roadmap endpoint (Phase 5)
+  // 4. Secure AI Career Intelligence Roadmap endpoint (Phase 5)
   app.post('/api/career/generate-plan', async (req: Request, res: Response) => {
     try {
-      const input = req.body;
-      if (!input || !input.targetRole) {
-        return res.status(400).json({
-          error: 'Missing required targetRole in career plan request.',
-        });
+      const validation = validateAiRequestBody(req.body, ['targetRole']);
+      if (!validation.valid) {
+        return respondStructuredError(res, 400, 'MISSING_INPUT', validation.reason || 'Missing required targetRole.');
       }
 
-      const planResult = await generateCareerRoadmapPlan(input);
+      const planResult = await generateCareerRoadmapPlan(req.body);
+      if (planResult && (planResult as any).modelUsed) {
+        res.setHeader('X-AI-Model', (planResult as any).modelUsed);
+      }
       return res.json(planResult);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('[API /api/career/generate-plan Error]:', message);
-
-      const status = message.includes('GEMINI_API_KEY') ? 503 : 500;
-      return res.status(status).json({
-        error: message,
-      });
+      return handleEndpointCatch(err, res, '/api/career/generate-plan');
     }
   });
 
-  // Secure AI Career Assistant Q&A Chat endpoint (Phase 5)
+  // 5. Secure AI Career Assistant Q&A Chat endpoint (Phase 5)
   app.post('/api/career/assistant-chat', async (req: Request, res: Response) => {
     try {
-      const input = req.body;
-      if (!input || !input.question) {
-        return res.status(400).json({
-          error: 'Missing required question in career assistant chat request.',
-        });
+      const validation = validateAiRequestBody(req.body, ['question']);
+      if (!validation.valid) {
+        return respondStructuredError(res, 400, 'MISSING_INPUT', validation.reason || 'Missing required question.');
       }
 
-      const reply = await answerCareerQuestion(input);
+      const reply = await answerCareerQuestion(req.body);
       return res.json({ reply });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('[API /api/career/assistant-chat Error]:', message);
-
-      const status = message.includes('GEMINI_API_KEY') ? 503 : 500;
-      return res.status(status).json({
-        error: message,
-      });
+      return handleEndpointCatch(err, res, '/api/career/assistant-chat');
     }
   });
 
-  // Secure AI Interview Question Generator endpoint (Phase 6)
+  // 6. Secure AI Interview Question Generator endpoint (Phase 6)
   app.post('/api/interview/generate-questions', async (req: Request, res: Response) => {
     try {
-      const input = req.body;
-      if (!input || !input.targetRole) {
-        return res.status(400).json({
-          error: 'Missing required targetRole in interview question request.',
-        });
+      const validation = validateAiRequestBody(req.body, ['targetRole']);
+      if (!validation.valid) {
+        return respondStructuredError(res, 400, 'MISSING_INPUT', validation.reason || 'Missing required targetRole.');
       }
 
-      const questions = await generateInterviewQuestions(input);
+      const questions = await generateInterviewQuestions(req.body);
       return res.json({ questions });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('[API /api/interview/generate-questions Error]:', message);
-
-      const status = message.includes('GEMINI_API_KEY') ? 503 : 500;
-      return res.status(status).json({
-        error: message,
-      });
+      return handleEndpointCatch(err, res, '/api/interview/generate-questions');
     }
   });
 
-  // Secure AI Interview Answer Evaluation endpoint (Phase 6)
+  // 7. Secure AI Interview Answer Evaluation endpoint (Phase 6)
   app.post('/api/interview/evaluate-answer', async (req: Request, res: Response) => {
     try {
-      const input = req.body;
-      if (!input || !input.question) {
-        return res.status(400).json({
-          error: 'Missing required question in answer evaluation request.',
-        });
+      const validation = validateAiRequestBody(req.body, ['question']);
+      if (!validation.valid) {
+        return respondStructuredError(res, 400, 'MISSING_INPUT', validation.reason || 'Missing required question.');
       }
 
-      const evaluation = await evaluateInterviewAnswer(input);
+      const evaluation = await evaluateInterviewAnswer(req.body);
       return res.json({ evaluation });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('[API /api/interview/evaluate-answer Error]:', message);
-
-      const status = message.includes('GEMINI_API_KEY') ? 503 : 500;
-      return res.status(status).json({
-        error: message,
-      });
+      return handleEndpointCatch(err, res, '/api/interview/evaluate-answer');
     }
   });
 
-  // Secure AI Interview Coach Chat endpoint (Phase 6)
+  // 8. Secure AI Interview Coach Chat endpoint (Phase 6)
   app.post('/api/interview/coach-chat', async (req: Request, res: Response) => {
     try {
-      const input = req.body;
-      if (!input || !input.message) {
-        return res.status(400).json({
-          error: 'Missing required message in interview coach request.',
-        });
+      const validation = validateAiRequestBody(req.body, ['message']);
+      if (!validation.valid) {
+        return respondStructuredError(res, 400, 'MISSING_INPUT', validation.reason || 'Missing required message.');
       }
 
-      const reply = await chatWithInterviewCoach(input);
+      const reply = await chatWithInterviewCoach(req.body);
       return res.json({ reply });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('[API /api/interview/coach-chat Error]:', message);
-
-      const status = message.includes('GEMINI_API_KEY') ? 503 : 500;
-      return res.status(status).json({
-        error: message,
-      });
+      return handleEndpointCatch(err, res, '/api/interview/coach-chat');
     }
   });
 
-  // Secure AI Application Draft Assistant endpoint (Phase 7)
+  // 9. Secure AI Application Draft Assistant endpoint (Phase 7)
   app.post('/api/placement/generate-draft', async (req: Request, res: Response) => {
     try {
-      const input = req.body;
-      if (!input || !input.job || !input.studentContext) {
-        return res.status(400).json({
-          error: 'Missing required job or studentContext in application draft request.',
-        });
+      const validation = validateAiRequestBody(req.body, ['job', 'studentContext']);
+      if (!validation.valid) {
+        return respondStructuredError(
+          res,
+          400,
+          'MISSING_INPUT',
+          validation.reason || 'Missing required job or studentContext.'
+        );
       }
 
-      const draft = await generateApplicationDraft(input);
+      const draft = await generateApplicationDraft(req.body);
+      if (draft && (draft as any).modelUsed) {
+        res.setHeader('X-AI-Model', (draft as any).modelUsed);
+      }
       return res.json({ draft });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('[API /api/placement/generate-draft Error]:', message);
+      return handleEndpointCatch(err, res, '/api/placement/generate-draft');
+    }
+  });
 
-      const status = message.includes('GEMINI_API_KEY') ? 503 : 500;
-      return res.status(status).json({
-        error: message,
-      });
+  // 10. Secure Unified AI Assistant & Cross-Module Intelligence endpoint (Phase D.7.1)
+  app.post('/api/assistant/unified-chat', async (req: Request, res: Response) => {
+    try {
+      const validation = validateAiRequestBody(req.body, ['message']);
+      if (!validation.valid) {
+        return respondStructuredError(res, 400, 'MISSING_INPUT', validation.reason || 'Missing required message.');
+      }
+
+      const result = await processUnifiedAssistantChat(req.body);
+      if (result && result.modelUsed) {
+        res.setHeader('X-AI-Model', result.modelUsed);
+      }
+      return res.json(result);
+    } catch (err: unknown) {
+      return handleEndpointCatch(err, res, '/api/assistant/unified-chat');
     }
   });
 
