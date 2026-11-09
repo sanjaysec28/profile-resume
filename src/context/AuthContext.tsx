@@ -169,20 +169,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('User is not authenticated.');
     }
 
+    // Optimistically update local state immediately so route guards react instantly
+    setUserProfile((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        ...updates,
+      };
+    });
+
     await updateUserProfile(user.uid, updates);
 
     // Refresh from Firestore to guarantee UI is in sync with database
     const refreshed = await getUserProfile(user.uid);
     if (refreshed) {
       setUserProfile(refreshed);
-    } else {
-      setUserProfile((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          ...updates,
-        };
-      });
     }
   };
 

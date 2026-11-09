@@ -136,7 +136,7 @@ export function StudentQuickSetupPage({
                     required
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    placeholder="e.g. Alex"
+                    placeholder="e.g. Sanjay"
                     className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#F9F8F5] border border-[#E5E0D8] text-[#101010] text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#101010]"
                   />
                 </div>
@@ -151,7 +151,7 @@ export function StudentQuickSetupPage({
                   required
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  placeholder="e.g. Chen"
+                  placeholder="e.g. Kumar"
                   className="w-full px-3 py-2.5 rounded-xl bg-[#F9F8F5] border border-[#E5E0D8] text-[#101010] text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#101010]"
                 />
               </div>
@@ -205,7 +205,7 @@ export function StudentQuickSetupPage({
                   required
                   value={collegeName}
                   onChange={(e) => setCollegeName(e.target.value)}
-                  placeholder="e.g. Stanford University"
+                  placeholder="e.g. Saveetha Engineering College"
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#F9F8F5] border border-[#E5E0D8] text-[#101010] text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#101010]"
                 />
               </div>
@@ -223,8 +223,10 @@ export function StudentQuickSetupPage({
                 <select
                   value={academicYear}
                   onChange={(e) => setAcademicYear(e.target.value)}
+                  required
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#F9F8F5] border border-[#E5E0D8] text-[#101010] text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#101010]"
                 >
+                  <option value="" disabled>Select academic year</option>
                   <option value="1st Year">1st Year</option>
                   <option value="2nd Year">2nd Year</option>
                   <option value="3rd Year">3rd Year</option>
