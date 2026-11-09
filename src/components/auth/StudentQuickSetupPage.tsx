@@ -37,15 +37,17 @@ export function StudentQuickSetupPage({
     profile.avatar === 'girl' ? 'Female' : 'Male'
   );
   const [collegeName, setCollegeName] = useState(profile.collegeOrUniversity || userProfile?.collegeOrUniversity || '');
-  const [academicYear, setAcademicYear] = useState(profile.graduationYear || userProfile?.graduationYear || '3rd Year');
+  const [academicYear, setAcademicYear] = useState(profile.graduationYear || userProfile?.graduationYear || '');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('[Onboarding Diagnostics] 1. CONTINUE_CLICKED');
     setError(null);
 
+    console.log('[Onboarding Diagnostics] 2. VALIDATION_STARTED');
     if (!firstName.trim() || !lastName.trim()) {
       setError('Please provide both your first and last name.');
       return;
@@ -54,8 +56,15 @@ export function StudentQuickSetupPage({
       setError('Please enter your college name.');
       return;
     }
-    if (!academicYear.trim()) {
+    if (!academicYear || academicYear === '') {
       setError('Please select your academic year.');
+      return;
+    }
+    console.log('[Onboarding Diagnostics] 3. VALIDATION_PASSED');
+
+    console.log('[Onboarding Diagnostics] 4. AUTH_USER_CHECKED: uid=', user?.uid);
+    if (!user) {
+      setError('User is not authenticated. Please sign in again.');
       return;
     }
 
@@ -74,7 +83,9 @@ export function StudentQuickSetupPage({
         avatarUrl: user?.photoURL || profile.avatarUrl,
       };
 
+      console.log('[Onboarding Diagnostics] 5. FIRESTORE_WRITE_STARTED');
       await onComplete(updated);
+      console.log('[Onboarding Diagnostics] 6. FIRESTORE_WRITE_SUCCEEDED');
     } catch (err: any) {
       console.error('[StudentQuickSetup] Error saving profile:', err);
       setError(err.message || 'Failed to save profile. Please try again.');

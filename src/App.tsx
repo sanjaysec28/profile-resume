@@ -220,7 +220,7 @@ function AppContent() {
   useEffect(() => {
     if (user) {
       if (userProfile) {
-        if (!userProfile.onboardingCompleted || !userProfile.collegeOrUniversity || !userProfile.major) {
+        if (!userProfile.onboardingCompleted || !userProfile.collegeOrUniversity || !userProfile.graduationYear) {
           if (currentView === 'signin' || currentView === 'welcome' || currentView === 'dashboard') {
             setCurrentView('onboarding');
           }
@@ -639,7 +639,7 @@ function AppContent() {
         <SignInPage
           onBackToWelcome={() => setCurrentView('welcome')}
           onContinueToDashboard={() => {
-            if (userProfile && (!userProfile.onboardingCompleted || !userProfile.collegeOrUniversity || !userProfile.major)) {
+            if (userProfile && (!userProfile.onboardingCompleted || !userProfile.collegeOrUniversity || !userProfile.graduationYear)) {
               setCurrentView('onboarding');
             } else {
               setCurrentView('dashboard');
@@ -660,20 +660,21 @@ function AppContent() {
           userProfile={userProfile}
           profile={profile}
           onComplete={async (updated) => {
+            console.log('[Onboarding Diagnostics] 7. PROFILE_STATE_UPDATED');
             await handleUpdateProfile({
               ...updated,
             });
             if (user) {
+              console.log('[Onboarding Diagnostics] 8. ONBOARDING_STATUS_CONFIRMED');
               await updateProfile({
                 collegeOrUniversity: updated.collegeOrUniversity,
-                major: updated.major,
                 graduationYear: updated.graduationYear,
-                targetRole: updated.targetRole,
                 avatar: updated.avatar,
                 displayName: updated.fullName,
                 onboardingCompleted: true,
               } as any);
             }
+            console.log('[Onboarding Diagnostics] 9. DASHBOARD_NAVIGATION_STARTED');
             setCurrentView('dashboard');
           }}
           onSignOut={user ? handleSignOut : undefined}
@@ -869,7 +870,9 @@ function AppContent() {
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
           <div key={currentView} className="animate-page-enter">
             {/* VIEW 1: STUDENT DASHBOARD */}
-            {currentView === 'dashboard' && (
+            {currentView === 'dashboard' && (() => {
+              console.log('[Onboarding Diagnostics] 10. DASHBOARD_RENDERED');
+              return (
               <div>
                 {/* Header Banner Card with boy-card.webp / girl-card.webp spanning the hero artwork area */}
                 <div className="relative w-full rounded-[24px] sm:rounded-[28px] overflow-hidden border border-[#E5E0D8] bg-[#F7F4ED] shadow-sm mb-8 sm:mb-10 min-h-[160px] sm:min-h-[190px]">
@@ -1100,7 +1103,8 @@ function AppContent() {
                   />
                 </div>
               </div>
-            )}
+            );
+            })()}
 
             {/* VIEW 2: MY PROFILE */}
             {currentView === 'profile' && (
