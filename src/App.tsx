@@ -871,60 +871,46 @@ function AppContent() {
             {/* VIEW 1: STUDENT DASHBOARD */}
             {currentView === 'dashboard' && (
               <div>
-                {/* Header Banner Card with personalized greeting, student metadata and mascot */}
-                <div className="relative w-full rounded-[24px] sm:rounded-[28px] overflow-hidden border border-[#E5E0D8] bg-[#F7F4ED] shadow-sm mb-8 sm:mb-10 p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
-                  <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-40">
-                    <FadeImage
-                      src="/images/headercard.webp"
-                      fallbackSrc="/images/headercard.webp"
-                      alt="Banner"
-                      wrapperClassName="w-full h-full"
-                      className="w-full h-full object-cover"
-                      loading="eager"
-                    />
-                  </div>
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#FAF7F2] via-[#FAF7F2]/90 to-transparent pointer-events-none" />
-
-                  <div className="relative z-10 space-y-2 max-w-xl">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {profile.collegeOrUniversity && (
-                        <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#625D56] bg-white/90 border border-[#E5E0D8] px-2.5 py-1 rounded-lg shadow-2xs">
-                          {profile.collegeOrUniversity}
-                        </span>
-                      )}
-                      {profile.graduationYear && (
-                        <span className="text-[10px] sm:text-xs font-bold text-[#8C6D1F] bg-[#FAF5EC] border border-[#E8DEC8] px-2.5 py-1 rounded-lg">
-                          {profile.graduationYear}
-                        </span>
-                      )}
-                      {profile.major && (
-                        <span className="text-[10px] sm:text-xs font-medium text-[#555555] bg-white/80 border border-[#E5E0D8] px-2.5 py-1 rounded-lg">
-                          {profile.major}
-                        </span>
-                      )}
-                    </div>
-                    <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-[#171513] leading-tight">
-                      {(() => {
-                        const rawName = user?.displayName || (profile.fullName && profile.fullName !== 'Student' ? profile.fullName : '');
-                        const firstName = rawName.trim().split(/\s+/)[0];
-                        return firstName ? `Hi, ${firstName}!` : 'Hi there!';
-                      })()}
-                    </h1>
-                    <p className="text-xs sm:text-sm text-[#625D56] leading-relaxed">
-                      Build a professional resume, check your ATS compatibility, and get ready for your next career opportunity.
-                    </p>
-                  </div>
-
-                  {/* Mascot Image */}
-                  <div className="relative z-10 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-white border border-[#E5E0D8] shadow-md shrink-0 flex items-center justify-center p-2">
+                {/* Header Banner Card with boy-card.webp / girl-card.webp spanning the hero artwork area */}
+                <div className="relative w-full rounded-[24px] sm:rounded-[28px] overflow-hidden border border-[#E5E0D8] bg-[#F7F4ED] shadow-sm mb-8 sm:mb-10 min-h-[160px] sm:min-h-[190px]">
+                  <div className="absolute inset-0 overflow-hidden pointer-events-none">
                     <FadeImage
                       src={profile.avatar === 'girl' ? '/images/girl-card.webp' : '/images/boy-card.webp'}
                       fallbackSrc="/images/boy-card.webp"
-                      alt="Student Mascot"
+                      alt="ProFile Hero Banner"
                       wrapperClassName="w-full h-full"
-                      className="w-full h-full object-cover rounded-xl"
+                      className="w-full h-full object-cover object-right opacity-90"
                       loading="eager"
                     />
+                  </div>
+                  {/* Subtle warm ivory/cream text backdrop gradient on the left side to ensure excellent contrast */}
+                  <div className="absolute inset-y-0 left-0 w-full sm:w-[75%] lg:w-[65%] bg-gradient-to-r from-[#FAF7F2] via-[#FAF7F2]/90 to-transparent pointer-events-none" />
+
+                  <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-10 lg:px-12 max-w-[90%] sm:max-w-[70%] lg:max-w-[60%] z-10">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {profile.collegeOrUniversity && (
+                          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#625D56] bg-white/90 border border-[#E5E0D8] px-2.5 py-0.5 rounded-md shadow-2xs">
+                            {profile.collegeOrUniversity}
+                          </span>
+                        )}
+                        {profile.graduationYear && (
+                          <span className="text-[10px] sm:text-xs font-bold text-[#8C6D1F] bg-[#FAF5EC] border border-[#E8DEC8] px-2.5 py-0.5 rounded-md">
+                            {profile.graduationYear}
+                          </span>
+                        )}
+                      </div>
+                      <h1 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-[#171513] leading-tight">
+                        {(() => {
+                          const rawName = user?.displayName || (profile.fullName && profile.fullName !== 'Student' ? profile.fullName : '');
+                          const firstName = rawName.trim().split(/\s+/)[0];
+                          return firstName ? `Hi, ${firstName}!` : 'Hi there!';
+                        })()}
+                      </h1>
+                      <p className="text-[11px] sm:text-sm text-[#625D56] leading-relaxed">
+                        Build a professional resume, check your ATS compatibility, and get ready for your next opportunity.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
