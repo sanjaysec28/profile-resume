@@ -220,7 +220,7 @@ export function PersonalInfoStep({ data, onChange, onOpenAssistant }: PersonalIn
         <Input
           label="Full Name"
           value={info.fullName}
-          placeholder="e.g. Jane Doe"
+          placeholder="e.g. Sanjay Kumar"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('fullName', e.target.value)
           }
@@ -228,7 +228,7 @@ export function PersonalInfoStep({ data, onChange, onOpenAssistant }: PersonalIn
         <Input
           label="Professional Title"
           value={info.professionalTitle || ''}
-          placeholder="e.g. Computer Science Student"
+          placeholder="e.g. AI & Data Science Student"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('professionalTitle', e.target.value)
           }
@@ -237,7 +237,7 @@ export function PersonalInfoStep({ data, onChange, onOpenAssistant }: PersonalIn
           label="Email Address"
           type="email"
           value={info.email}
-          placeholder="e.g. jane.doe@university.edu"
+          placeholder="e.g. sanjay.kumar@gmail.com"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('email', e.target.value)
           }
@@ -246,7 +246,7 @@ export function PersonalInfoStep({ data, onChange, onOpenAssistant }: PersonalIn
           label="Phone Number"
           type="tel"
           value={info.phone}
-          placeholder="e.g. +1 (555) 000-0000"
+          placeholder="e.g. +91 98765 43210"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('phone', e.target.value)
           }
@@ -254,7 +254,7 @@ export function PersonalInfoStep({ data, onChange, onOpenAssistant }: PersonalIn
         <Input
           label="Location"
           value={info.location}
-          placeholder="e.g. San Francisco, CA"
+          placeholder="e.g. Chennai, Tamil Nadu"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('location', e.target.value)
           }
@@ -262,7 +262,7 @@ export function PersonalInfoStep({ data, onChange, onOpenAssistant }: PersonalIn
         <Input
           label="LinkedIn Profile"
           value={info.linkedin || ''}
-          placeholder="e.g. https://linkedin.com/in/janedoe"
+          placeholder="e.g. linkedin.com/in/sanjaykumar"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('linkedin', e.target.value)
           }
@@ -270,7 +270,7 @@ export function PersonalInfoStep({ data, onChange, onOpenAssistant }: PersonalIn
         <Input
           label="GitHub Profile"
           value={info.github || ''}
-          placeholder="e.g. https://github.com/janedoe"
+          placeholder="e.g. github.com/sanjaykumar"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('github', e.target.value)
           }
@@ -278,7 +278,7 @@ export function PersonalInfoStep({ data, onChange, onOpenAssistant }: PersonalIn
         <Input
           label="Portfolio Website"
           value={info.website || ''}
-          placeholder="e.g. https://janedoe.dev"
+          placeholder="e.g. sanjay.dev"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             updateField('website', e.target.value)
           }
@@ -309,7 +309,7 @@ export function PersonalInfoStep({ data, onChange, onOpenAssistant }: PersonalIn
           rows={3}
           maxLength={500}
           value={info.summary}
-          placeholder="A passionate student with a strong interest in building real-world solutions..."
+          placeholder="An enthusiastic AI and Data Science student passionate about developing innovative software solutions, machine learning applications and real-world technology projects."
           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
             updateField('summary', e.target.value)
           }

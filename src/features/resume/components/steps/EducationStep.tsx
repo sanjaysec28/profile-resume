@@ -48,9 +48,11 @@ export function EducationStep({ data, onChange }: EducationStepProps) {
     }));
   };
 
+  const years = Array.from({ length: 16 }, (_, i) => (2015 + i).toString());
+
   return (
     <div className="space-y-6">
-      {/* Add Button matching reference */}
+      {/* Add Button */}
       <div>
         <button
           type="button"
@@ -69,6 +71,13 @@ export function EducationStep({ data, onChange }: EducationStepProps) {
             edu.degree && edu.fieldOfStudy
               ? `${edu.degree} (${edu.fieldOfStudy})`
               : edu.degree || edu.institution || `Education Record #${idx + 1}`;
+
+          const isEndDateInvalid = Boolean(
+            edu.startDate &&
+            edu.endDate &&
+            edu.endDate !== 'Present / Ongoing' &&
+            parseInt(edu.endDate, 10) < parseInt(edu.startDate, 10)
+          );
 
           return (
             <div
@@ -96,13 +105,13 @@ export function EducationStep({ data, onChange }: EducationStepProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
                   label="Institution / School Name"
-                  placeholder="e.g. State University"
+                  placeholder="e.g. Saveetha Engineering College"
                   value={edu.institution}
                   onChange={(e) => handleUpdateItem(edu.id, 'institution', e.target.value)}
                 />
                 <Input
                   label="Degree / Examination"
-                  placeholder="e.g. Bachelor of Science"
+                  placeholder="e.g. Bachelor of Technology (B.Tech)"
                   value={edu.degree}
                   onChange={(e) => handleUpdateItem(edu.id, 'degree', e.target.value)}
                 />
@@ -113,27 +122,50 @@ export function EducationStep({ data, onChange }: EducationStepProps) {
                 <div className="md:col-span-1">
                   <Input
                     label="Branch / Major"
-                    placeholder="e.g. AI & Data Science"
+                    placeholder="e.g. Artificial Intelligence and Data Science"
                     value={edu.fieldOfStudy}
                     onChange={(e) => handleUpdateItem(edu.id, 'fieldOfStudy', e.target.value)}
                   />
                 </div>
+
+                {/* Start Year Dropdown */}
                 <div>
-                  <Input
-                    label="Start Year"
-                    placeholder="e.g. 2024"
+                  <label className="block text-xs font-semibold text-[#101010] mb-1">
+                    Start Year
+                  </label>
+                  <select
                     value={edu.startDate}
                     onChange={(e) => handleUpdateItem(edu.id, 'startDate', e.target.value)}
-                  />
+                    className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#E5E0D8] text-[#101010] text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#101010]"
+                  >
+                    <option value="">Select year</option>
+                    {years.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
                 </div>
+
+                {/* End Year Dropdown */}
                 <div>
-                  <Input
-                    label="End Year"
-                    placeholder="e.g. 2028"
+                  <label className="block text-xs font-semibold text-[#101010] mb-1">
+                    End Year
+                  </label>
+                  <select
                     value={edu.endDate}
                     onChange={(e) => handleUpdateItem(edu.id, 'endDate', e.target.value)}
-                  />
+                    className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#E5E0D8] text-[#101010] text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#101010]"
+                  >
+                    <option value="">Select year</option>
+                    <option value="Present / Ongoing">Present / Ongoing</option>
+                    {years.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                  {isEndDateInvalid && (
+                    <p className="text-[10px] text-red-600 mt-1">End year cannot be earlier than start year.</p>
+                  )}
                 </div>
+
                 <div>
                   <Input
                     label="CGPA / Percentage"

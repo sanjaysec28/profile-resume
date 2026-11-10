@@ -735,8 +735,8 @@ export function ResumeBuilder({
       <div className="w-full max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 mt-5 sm:mt-6 mb-6 sm:mb-7">
         <div className="bg-white/95 backdrop-blur-md border border-[#E5E0D8] rounded-2xl sm:rounded-3xl shadow-[0_4px_24px_rgba(16,16,16,0.05),0_1px_3px_rgba(16,16,16,0.02)] p-3 sm:p-4 flex flex-col gap-3 transition-all duration-200">
           
-          {/* ROW 1: Navigation & Resume Setup (Exactly 3 items in order) */}
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 sm:gap-3 w-full pb-3 border-b border-[#F0ECE3]">
+          {/* ROW 1: Navigation & Resume Setup (Exactly 4 items in order) */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center justify-center gap-2.5 sm:gap-3 w-full pb-3 border-b border-[#F0ECE3]">
             {/* 1. Back to Dashboard */}
             <button
               type="button"
@@ -752,7 +752,7 @@ export function ResumeBuilder({
             </button>
 
             {/* 2. Target Role / Resume Purpose Indicator (Visually distinct informational card, not a button) */}
-            <div className="inline-flex items-center gap-2.5 h-11 px-3.5 sm:px-4 rounded-xl bg-[#FAF7F2] border border-[#E8DEC8] text-xs shadow-2xs select-none min-w-0 flex-1 sm:flex-initial">
+            <div className="inline-flex items-center gap-2.5 h-11 px-3.5 sm:px-4 rounded-xl bg-[#FAF7F2] border border-[#E8DEC8] text-xs shadow-2xs select-none min-w-0 shrink-0">
               <div className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
               <div className="flex flex-col text-left leading-tight min-w-0">
                 <div className="flex items-center gap-1.5">
