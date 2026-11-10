@@ -119,7 +119,7 @@ service cloud.firestore {
         'uid', 'displayName', 'email', 'emailVerified', 'photoURL',
         'avatar', 'collegeOrUniversity', 'major', 'graduationYear',
         'gpa', 'targetRole', 'bio', 'phone', 'location',
-        'socialLinks', 'createdAt', 'updatedAt'
+        'socialLinks', 'createdAt', 'updatedAt', 'onboardingCompleted'
       ];
       
       return data.keys().hasOnly(allowedKeys)
@@ -127,7 +127,8 @@ service cloud.firestore {
         && (!('displayName' in data) || data.displayName == null || data.displayName is string)
         && (!('email' in data) || data.email == null || data.email is string)
         && (!('emailVerified' in data) || data.emailVerified is bool)
-        && (!('photoURL' in data) || data.photoURL == null || data.photoURL is string);
+        && (!('photoURL' in data) || data.photoURL == null || data.photoURL is string)
+        && (!('onboardingCompleted' in data) || data.onboardingCompleted is bool);
     }
 
     // Deny all other access by default
